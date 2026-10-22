@@ -1,0 +1,244 @@
+{
+  "entities": {
+    "AdminDoc": {
+      "title": "AdminDoc",
+      "description": "Administrator record for privileged accounts",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "email", "role", "createdAt"]
+    },
+    "NovelDoc": {
+      "title": "NovelDoc",
+      "description": "Metadata for a novel stored in Firestore",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "genre": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Đang ra", "Hoàn thành"]
+        },
+        "synopsis": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "coverStyle": {
+          "type": "string",
+          "enum": ["ink-mountain", "imperial-moon", "star-nebula", "ancient-library", "jade-bamboo", "crimson-blade"]
+        },
+        "coverImageUrl": {
+          "type": "string",
+          "maxLength": 500000
+        },
+        "chapterCount": {
+          "type": "number"
+        },
+        "sourceUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "autoFetchEnabled": {
+          "type": "boolean"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "title", "author", "genre", "status", "synopsis", "coverStyle", "chapterCount", "ownerId", "createdAt", "updatedAt"]
+    },
+    "ChapterDoc": {
+      "title": "ChapterDoc",
+      "description": "A single chapter document belonging to a novel",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "novelId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "number": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 25000
+        },
+        "wordCount": {
+          "type": "number"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "novelId", "number", "title", "content", "wordCount", "ownerId", "createdAt"]
+    },
+    "UserProfileDoc": {
+      "title": "UserProfileDoc",
+      "description": "Registered user profile and gamification stats stored in Firestore",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "nickname": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "avatarUrl": {
+          "type": "string",
+          "maxLength": 500000
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "level": {
+          "type": "number"
+        },
+        "exp": {
+          "type": "number"
+        },
+        "equippedTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "nickname",
+        "avatarUrl",
+        "bio",
+        "level",
+        "exp",
+        "equippedTitle",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserProgressDoc": {
+      "title": "UserProgressDoc",
+      "description": "User reading progress and bookmark status for a novel",
+      "type": "object",
+      "properties": {
+        "novelId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chapterNumber": {
+          "type": "number"
+        },
+        "isBookmarked": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["novelId", "userId", "chapterNumber", "isBookmarked", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminDoc" },
+      "description": "Stores administrator records for privileged management"
+    },
+    "/novels/{novelId}": {
+      "schema": { "$ref": "#/entities/NovelDoc" },
+      "description": "Stores novels created or imported via URL by authenticated users"
+    },
+    "/novels/{novelId}/chapters/{chapterId}": {
+      "schema": { "$ref": "#/entities/ChapterDoc" },
+      "description": "Stores chapters belonging to a novel"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfileDoc" },
+      "description": "Stores registered user profile, level, and title stats"
+    },
+    "/users/{userId}/progress/{novelId}": {
+      "schema": { "$ref": "#/entities/UserProgressDoc" },
+      "description": "Stores private per-user reading progress and bookmarks"
+    }
+  }
+}

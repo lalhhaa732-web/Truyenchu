@@ -1,0 +1,304 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Bootstrapped Admin (lalhhaa732@gmail.com) & /admins/{uid} lookup
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'lalhhaa732@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprint: AdminDoc
+    function isValidAdminDoc(data, adminId) {
+      return data.keys().hasAll(['userId', 'email', 'role', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'email', 'role', 'createdAt'])
+        && data.userId is string && data.userId == adminId && isValidId(data.userId) && data.userId == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && data.role is string && data.role == 'admin'
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: NovelDoc
+    function isValidNovelDoc(data, novelId) {
+      return data.keys().hasAll([
+          'id', 'title', 'author', 'genre', 'status', 'synopsis',
+          'coverStyle', 'chapterCount', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'title', 'author', 'genre', 'status', 'synopsis',
+          'coverStyle', 'coverImageUrl', 'chapterCount', 'sourceUrl', 'autoFetchEnabled',
+          'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == novelId && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 150
+        && data.author is string && data.author.size() >= 1 && data.author.size() <= 100
+        && data.genre is string && data.genre.size() >= 1 && data.genre.size() <= 60
+        && data.status is string && (data.status == 'Đang ra' || data.status == 'Hoàn thành')
+        && data.synopsis is string && data.synopsis.size() <= 2000
+        && data.coverStyle is string && (
+          data.coverStyle == 'ink-mountain' ||
+          data.coverStyle == 'imperial-moon' ||
+          data.coverStyle == 'star-nebula' ||
+          data.coverStyle == 'ancient-library' ||
+          data.coverStyle == 'jade-bamboo' ||
+          data.coverStyle == 'crimson-blade'
+        )
+        && (!('coverImageUrl' in data) || (data.coverImageUrl is string && data.coverImageUrl.size() <= 500000))
+        && data.chapterCount is int && data.chapterCount >= 1 && data.chapterCount <= 100000
+        && (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() <= 500))
+        && (!('autoFetchEnabled' in data) || (data.autoFetchEnabled is bool))
+        && data.ownerId is string && isValidId(data.ownerId) && (data.ownerId == request.auth.uid || isAdmin())
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: ChapterDoc
+    function isValidChapterDoc(data, novelId, chapterId) {
+      return data.keys().hasAll([
+          'id', 'novelId', 'number', 'title', 'content', 'wordCount', 'ownerId', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'novelId', 'number', 'title', 'content', 'wordCount', 'ownerId', 'createdAt'
+        ])
+        && data.id is string && data.id == chapterId && isValidId(data.id)
+        && data.novelId is string && data.novelId == novelId && isValidId(data.novelId)
+        && data.number is int && data.number >= 1 && data.number <= 100000
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 25000
+        && data.wordCount is int && data.wordCount >= 1 && data.wordCount <= 50000
+        && data.ownerId is string && isValidId(data.ownerId) && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: UserProfileDoc
+    function isValidUserProfileDoc(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'nickname', 'avatarUrl', 'bio', 'level', 'exp',
+          'equippedTitle', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'nickname', 'avatarUrl', 'bio', 'level', 'exp',
+          'equippedTitle', 'createdAt', 'updatedAt'
+        ])
+        && data.userId is string && data.userId == userId && isValidId(data.userId) && data.userId == request.auth.uid
+        && data.nickname is string && data.nickname.size() >= 1 && data.nickname.size() <= 60
+        && data.avatarUrl is string && data.avatarUrl.size() <= 500000
+        && data.bio is string && data.bio.size() <= 300
+        && data.level is int && data.level >= 1 && data.level <= 100
+        && data.exp is int && data.exp >= 0 && data.exp <= 100000
+        && data.equippedTitle is string && data.equippedTitle.size() >= 1 && data.equippedTitle.size() <= 60
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: UserProgressDoc
+    function isValidUserProgressDoc(data, userId, novelId) {
+      return data.keys().hasAll([
+          'novelId', 'userId', 'chapterNumber', 'isBookmarked', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'novelId', 'userId', 'chapterNumber', 'isBookmarked', 'updatedAt'
+        ])
+        && data.novelId is string && data.novelId == novelId && isValidId(data.novelId)
+        && data.userId is string && data.userId == userId && isValidId(data.userId) && data.userId == request.auth.uid
+        && data.chapterNumber is int && data.chapterNumber >= 1 && data.chapterNumber <= 100000
+        && data.isBookmarked is bool
+        && data.updatedAt is timestamp;
+    }
+
+    // Collection: /admins/{adminId}
+    match /admins/{adminId} {
+      allow get: if isSignedIn()
+        && isValidId(adminId)
+        && request.auth.uid == adminId
+        && (resource == null || existing().userId == request.auth.uid);
+
+      allow list: if false;
+
+      allow create: if isBootstrappedAdmin()
+        && isValidId(adminId)
+        && request.auth.uid == adminId
+        && isValidAdminDoc(incoming(), adminId)
+        && incoming().createdAt == request.time;
+
+      allow update: if false;
+
+      allow delete: if isBootstrappedAdmin()
+        && isValidId(adminId)
+        && existing().userId == request.auth.uid;
+    }
+
+    // Collection: /novels/{novelId}
+    match /novels/{novelId} {
+      allow get: if isValidId(novelId) && (resource == null || existing().id == novelId);
+      allow list: if existing().chapterCount >= 1;
+
+      allow create: if isVerifiedUser()
+        && isValidId(novelId)
+        && isValidNovelDoc(incoming(), novelId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(novelId)
+        && isValidNovelDoc(incoming(), novelId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().ownerId == request.auth.uid
+            && incoming().ownerId == existing().ownerId
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'synopsis', 'status', 'coverStyle', 'coverImageUrl', 'chapterCount', 'autoFetchEnabled', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(novelId)
+        && (existing().ownerId == request.auth.uid || isAdmin());
+
+      // Subcollection: /novels/{novelId}/chapters/{chapterId}
+      match /chapters/{chapterId} {
+        allow get: if isValidId(novelId)
+          && isValidId(chapterId)
+          && (resource == null || (existing().novelId == novelId && existing().id == chapterId));
+
+        allow list: if existing().novelId == novelId;
+
+        allow create: if isVerifiedUser()
+          && isValidId(novelId)
+          && isValidId(chapterId)
+          && isValidChapterDoc(incoming(), novelId, chapterId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/novels/$(novelId))
+          && (
+            get(/databases/$(database)/documents/novels/$(novelId)).data.ownerId == request.auth.uid
+            || isAdmin()
+          );
+
+        allow update: if false;
+
+        allow delete: if isVerifiedUser()
+          && isValidId(novelId)
+          && isValidId(chapterId)
+          && exists(/databases/$(database)/documents/novels/$(novelId))
+          && (
+            (existing().ownerId == request.auth.uid && get(/databases/$(database)/documents/novels/$(novelId)).data.ownerId == request.auth.uid)
+            || isAdmin()
+          );
+      }
+    }
+
+    // Collection: /users/{userId}
+    match /users/{userId} {
+      allow get: if isSignedIn()
+        && isValidId(userId)
+        && (request.auth.uid == userId || isAdmin())
+        && (resource == null || existing().userId == userId);
+
+      allow list: if false;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfileDoc(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfileDoc(incoming(), userId)
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'nickname', 'avatarUrl', 'bio', 'level', 'exp',
+            'equippedTitle', 'updatedAt', 'streakDays', 'activePetId', 'petLevel'
+          ])
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(userId)
+        && (
+          (request.auth.uid == userId && existing().userId == request.auth.uid)
+          || isAdmin()
+        );
+
+      // Subcollection: /users/{userId}/progress/{novelId}
+      match /progress/{novelId} {
+        allow get: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(novelId)
+          && request.auth.uid == userId
+          && (resource == null || existing().userId == request.auth.uid);
+
+        allow list: if isSignedIn()
+          && request.auth.uid == userId
+          && existing().userId == request.auth.uid;
+
+        allow create: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(novelId)
+          && request.auth.uid == userId
+          && isValidUserProgressDoc(incoming(), userId, novelId)
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/novels/$(novelId));
+
+        allow update: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(novelId)
+          && request.auth.uid == userId
+          && isValidUserProgressDoc(incoming(), userId, novelId)
+          && existing().userId == request.auth.uid
+          && incoming().userId == existing().userId
+          && incoming().novelId == existing().novelId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'chapterNumber', 'isBookmarked', 'updatedAt'
+          ]);
+
+        allow delete: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(novelId)
+          && request.auth.uid == userId
+          && existing().userId == request.auth.uid;
+      }
+    }
+  }
+}

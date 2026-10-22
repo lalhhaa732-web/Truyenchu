@@ -1,0 +1,6 @@
+{
+  "name": "Mạc Thư Các — Đọc Truyện Tự Động & Cập Nhật Thời Gian Thực",
+  "description": "Nền tảng đọc truyện chữ tối giản với tính năng tự động cuộn, chuyển chương, đọc giọng nói và đồng bộ chương mới theo thời gian thực qua WebSocket.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
