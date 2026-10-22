@@ -1234,7 +1234,7 @@ export default function App() {
             onBackToCatalog={() => setReadingState(null)}
             newChapterAlert={newChapterAlert}
             onDismissNewChapterAlert={() => setNewChapterAlert(null)}
-            onFetchNextChapter={() => handleSyncSingleNovelUrl(activeNovel.id)}
+            onFetchNextChapter={isAdmin ? () => handleSyncSingleNovelUrl(activeNovel.id) : undefined}
             isFetchingNextChapter={syncingNovelId === activeNovel.id}
           />
           {expGainToast && (
@@ -1291,28 +1291,8 @@ export default function App() {
           </a>
         </div>
 
-        {/* Right Zone: Quick Publish / GitHub Sync + User Avatar with Liquid Glass Effect (unlocked at Lv 50+) & Dropdown Menu */}
+        {/* Right Zone: User Avatar with Liquid Glass Effect (unlocked at Lv 50+) & Dropdown Menu */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0" ref={avatarMenuRef}>
-          <button
-            type="button"
-            onClick={() => setModalState({ isOpen: true, mode: 'url' })}
-            className="hidden sm:inline-flex min-h-[34px] px-3 py-1.5 rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-950 text-xs font-semibold items-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
-            title="Nhập truyện từ URL, đăng chương mới hoặc đồng bộ lên GitHub"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 dark:text-amber-600 shrink-0" />
-            <span>Nhập URL / Đăng Chương</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setModalState({ isOpen: true, mode: 'github' })}
-            className="min-h-[34px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-800/10 hover:bg-amber-800/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-amber-700/30 dark:border-amber-400/30 text-amber-900 dark:text-amber-300 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Đồng bộ truyện và chương mới lên GitHub (Vercel)"
-          >
-            <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">Đồng Bộ GitHub</span>
-          </button>
-
           {/* Top-right Avatar Trigger */}
           <div className="relative flex items-center justify-center">
             {hasLiquidGlass && avatarBurstKey > 0 && (
@@ -1642,34 +1622,6 @@ export default function App() {
                     {settings.theme === 'dark' ? 'Nền tối' : 'Nền sáng'}
                   </span>
                 </button>
-
-                <div className="pt-2 mt-2 border-t border-stone-200 dark:border-stone-800 space-y-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      setModalState({ isOpen: true, mode: 'url' });
-                    }}
-                    className="w-full min-h-[42px] px-3.5 rounded-xl flex items-center gap-3 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 shrink-0 text-amber-700 dark:text-amber-400" />
-                    <span>Nhập Truyện URL / Đăng Chương</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      setModalState({ isOpen: true, mode: 'github' });
-                    }}
-                    className="w-full min-h-[42px] px-3.5 rounded-xl flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-300 bg-amber-800/10 dark:bg-amber-500/15 hover:bg-amber-800/20 dark:hover:bg-amber-500/25 border border-amber-700/25 dark:border-amber-400/25 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <RefreshCw className="w-4 h-4 shrink-0" />
-                      <span>Đồng Bộ Lên GitHub (Vercel)</span>
-                    </div>
-                  </button>
-                </div>
               </nav>
             </div>
 
@@ -1682,7 +1634,7 @@ export default function App() {
                 />
                 <span>{wsConnected ? `Trực tuyến · ${activeReaders} độc giả` : 'Đang kết nối...'}</span>
               </div>
-              <p>Tự động cuộn · Giọng đọc · Nhập từ URL</p>
+              <p>Tự động cuộn · Giọng đọc Nữ · Đọc tự động</p>
             </div>
           </aside>
         </div>
@@ -1720,14 +1672,16 @@ export default function App() {
               <span className="text-stone-500 dark:text-stone-400 font-mono-num">
                 Tổng cộng: {allChaptersSorted.length} chương
               </span>
-              <button
-                type="button"
-                onClick={() => handleQuickAutoRelease()}
-                className="font-medium text-amber-800 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <Radio className="w-3.5 h-3.5" />
-                <span>Lấy chương mới ngay</span>
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleQuickAutoRelease()}
+                  className="font-medium text-amber-800 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Lấy chương mới ngay</span>
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto divide-y divide-stone-200/60 dark:divide-stone-800/80 px-4 py-2">
@@ -1825,35 +1779,21 @@ export default function App() {
                   Kho truyện hiện đang trống
                 </h1>
                 <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 leading-relaxed">
-                  Toàn bộ truyện mẫu đã được xoá. Hãy nhập truyện mới từ URL hoặc tự đăng tác phẩm gốc của bạn.
+                  Hiện chưa có tác phẩm nào trên kệ sách. Quản trị viên có thể thêm và đồng bộ truyện mới trong mục Quản trị Admin.
                 </p>
               </div>
-              <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setModalState({ isOpen: true, mode: 'url' })}
-                  className="min-h-[38px] px-4 py-2 rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-950 text-xs font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Nhập truyện từ URL</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalState({ isOpen: true, mode: 'novel' })}
-                  className="min-h-[38px] px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-800 text-stone-800 dark:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Tự đăng truyện mới</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalState({ isOpen: true, mode: 'github' })}
-                  className="min-h-[38px] px-4 py-2 rounded-xl bg-amber-800/10 hover:bg-amber-800/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-amber-700/30 dark:border-amber-400/30 text-amber-900 dark:text-amber-300 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Đồng bộ với GitHub (Vercel)</span>
-                </button>
-              </div>
+              {isAdmin && (
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveProfileSection('admin')}
+                    className="min-h-[38px] px-4 py-2 rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-950 text-xs font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
+                  >
+                    <Crown className="w-3.5 h-3.5 text-amber-400 dark:text-amber-600" />
+                    <span>Mở Trung Tâm Quản Trị Admin</span>
+                  </button>
+                </div>
+              )}
             </section>
           ) : (
           <>
@@ -2140,15 +2080,17 @@ export default function App() {
                                 </button>
 
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    type="button"
-                                    disabled={syncingNovelId === novel.id}
-                                    onClick={() => handleSyncSingleNovelUrl(novel.id)}
-                                    className="p-1.5 rounded-md border border-stone-300 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800 cursor-pointer"
-                                    title={novel.sourceUrl ? 'Quét chương mới từ URL nguồn' : 'Lấy chương mới tiếp theo'}
-                                  >
-                                    <RefreshCw className={`w-3 h-3 ${syncingNovelId === novel.id ? 'animate-spin' : ''}`} />
-                                  </button>
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      disabled={syncingNovelId === novel.id}
+                                      onClick={() => handleSyncSingleNovelUrl(novel.id)}
+                                      className="p-1.5 rounded-md border border-stone-300 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800 cursor-pointer"
+                                      title={novel.sourceUrl ? 'Quét chương mới từ URL nguồn' : 'Lấy chương mới tiếp theo'}
+                                    >
+                                      <RefreshCw className={`w-3 h-3 ${syncingNovelId === novel.id ? 'animate-spin' : ''}`} />
+                                    </button>
+                                  )}
 
                                   <button
                                     type="button"
@@ -2184,22 +2126,24 @@ export default function App() {
                   Tự động đồng bộ từ nguồn Web/RSS và nhận chương mới qua WebSocket theo thời gian thực
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={Boolean(syncingNovelId)}
-                  onClick={async () => {
-                    const target = novels.find((n) => n.sourceUrl) || novels[0];
-                    if (target) {
-                      await handleSyncSingleNovelUrl(target.id);
-                    }
-                  }}
-                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 dark:bg-amber-600 dark:hover:bg-amber-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncingNovelId ? 'animate-spin' : ''}`} />
-                  <span>{syncingNovelId ? 'Đang lấy chương...' : 'Kiểm tra & Lấy chương mới'}</span>
-                </button>
-              </div>
+              {isAdmin && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={Boolean(syncingNovelId)}
+                    onClick={async () => {
+                      const target = novels.find((n) => n.sourceUrl) || novels[0];
+                      if (target) {
+                        await handleSyncSingleNovelUrl(target.id);
+                      }
+                    }}
+                    className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 dark:bg-amber-600 dark:hover:bg-amber-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingNovelId ? 'animate-spin' : ''}`} />
+                    <span>{syncingNovelId ? 'Đang lấy chương...' : 'Kiểm tra & Lấy chương mới'}</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="divide-y divide-stone-200/70 dark:divide-stone-800/80">
@@ -2318,26 +2262,28 @@ export default function App() {
 
                         <div className="flex items-center gap-2 shrink-0">
                           {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => setEditingCoverNovelId(novel.id)}
-                              className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-stone-300 dark:border-stone-800 text-xs font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800 flex items-center gap-1 cursor-pointer"
-                              title="Chỉnh bìa sách & Lấy ảnh từ thư viện"
-                            >
-                              <Palette className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                              <span className="hidden sm:inline">Chỉnh bìa</span>
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setEditingCoverNovelId(novel.id)}
+                                className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-stone-300 dark:border-stone-800 text-xs font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800 flex items-center gap-1 cursor-pointer"
+                                title="Chỉnh bìa sách & Lấy ảnh từ thư viện"
+                              >
+                                <Palette className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                                <span className="hidden sm:inline">Chỉnh bìa</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={syncingNovelId === novel.id}
+                                onClick={() => handleSyncSingleNovelUrl(novel.id)}
+                                className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-stone-300 dark:border-stone-800 text-xs font-medium flex items-center gap-1 cursor-pointer hover:bg-stone-200/50 dark:hover:bg-stone-800"
+                                title={novel.sourceUrl ? 'Lấy chương mới từ URL' : 'Lấy chương mới tiếp theo'}
+                              >
+                                <RefreshCw className={`w-3.5 h-3.5 ${syncingNovelId === novel.id ? 'animate-spin' : ''}`} />
+                                <span className="hidden sm:inline">Chương mới</span>
+                              </button>
+                            </>
                           )}
-                          <button
-                            type="button"
-                            disabled={syncingNovelId === novel.id}
-                            onClick={() => handleSyncSingleNovelUrl(novel.id)}
-                            className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-stone-300 dark:border-stone-800 text-xs font-medium flex items-center gap-1 cursor-pointer hover:bg-stone-200/50 dark:hover:bg-stone-800"
-                            title={novel.sourceUrl ? 'Lấy chương mới từ URL' : 'Lấy chương mới tiếp theo'}
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 ${syncingNovelId === novel.id ? 'animate-spin' : ''}`} />
-                            <span className="hidden sm:inline">Chương mới</span>
-                          </button>
                           <button
                             type="button"
                             onClick={() => openReader(novel.id, progress?.chapterNumber || 1)}
@@ -2363,7 +2309,7 @@ export default function App() {
       )}
 
       <PublishChapterModal
-        isOpen={modalState.isOpen}
+        isOpen={isAdmin && modalState.isOpen}
         initialMode={modalState.mode}
         onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
         novels={novels}
