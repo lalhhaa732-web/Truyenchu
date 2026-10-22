@@ -7,19 +7,19 @@
   "synopsis": "Dịch Phong xuyên không đến thế giới tu luyện, nhưng trớ trêu thay, lại chỉ là một phàm nhân không có chút linh căn nào! Bất đắc dĩ, hắn đành mở một võ quán nhỏ ven đường, ngày ngày dạy vài chiêu võ mèo cào, thỉnh thoảng rèn sắt kiếm cơm qua ngày. Hắn chỉ muốn sống yên ổn, làm một \"tông sư\" không lý tưởng như bao người. Thế nhưng, trong mắt những kẻ phàm tục lẫn cường giả ghé thăm, mỗi hành động vô tình của Dịch Phong lại ẩn chứa thâm ý kinh thiên động địa! Một cú đấm bình thường của hắn hóa thành tuyệt kỹ võ học, một thanh kiếm sắt vụn lại biến thành thần binh lợi khí, và những lời khuyên bâng quơ lại trở thành chân lý khai sáng. Liệu Dịch Phong có mãi mãi là \"Người Trên Vạn Người\" trong vỏ bọc phàm nhân, hay sẽ đến lúc hắn nhận ra thân phận thực sự của mình. Hãy cùng khám phá câu chuyện đầy hài hước và bất ngờ này!",
   "coverStyle": "star-nebula",
   "coverImageUrl": "https://storya.click/media/covers/056283d7-a7f9-f0b0-2f1a-8da705223710/vi/a2cc095beaf6cf67d43fa50f2390fe2f959a7f1cb46f07f367f606c0b4349f18.jpg",
-  "views": 468,
+  "views": 3437,
   "rating": 5,
-  "updatedAt": "2026-10-22T15:19:45.355Z",
+  "updatedAt": "2026-10-22T15:39:30.534Z",
   "sourceUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi",
   "autoFetchEnabled": true,
-  "lastSyncedAt": "2026-10-22T15:19:45.355Z",
+  "lastSyncedAt": "2026-10-22T15:39:30.534Z",
   "pendingChapterLinks": [
     {
-      "title": "Chương 6",
-      "url": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/xem-nhu-cho-hoang-phe-thien-yeu-lang"
+      "title": "Chương 32",
+      "url": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/vi-dich-tien-sinh-nay-rot-cuoc-la-ai"
     }
   ],
-  "chapterCount": 5,
+  "chapterCount": 31,
   "chaptersIndex": [
     {
       "id": "nguoi-tren-van-nguoi-267-c1",
@@ -60,6 +60,214 @@
       "wordCount": 1356,
       "publishedAt": "2026-10-22T15:19:45.355Z",
       "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/ta-suy-doan-han-la-mot-cai-sieu-cap-lao-quai"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c6-1792682420072",
+      "number": 6,
+      "title": "Xem như chó hoang Phệ Thiên Yêu Lang",
+      "wordCount": 1182,
+      "publishedAt": "2026-10-22T15:20:20.072Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/xem-nhu-cho-hoang-phe-thien-yeu-lang"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c7-1792682455054",
+      "number": 7,
+      "title": "Một chút xíu khí tức đều không có để lộ, cảnh giới cỡ này. . .",
+      "wordCount": 1562,
+      "publishedAt": "2026-10-22T15:20:55.054Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/mot-chut-xiu-khi-tuc-deu-khong-co-de-lo-canh-gioi-co-nay"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c8-1792682489978",
+      "number": 8,
+      "title": "Vị tiền bối này, rõ ràng chơi một cái Phệ Thiên Yêu Lang tới nhắm rượu uống?",
+      "wordCount": 1710,
+      "publishedAt": "2026-10-22T15:21:29.978Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/vi-tien-boi-nay-ro-rang-choi-mot-cai-phe-thien-yeu-lang-toi-nham-ruou-uong"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c9-1792682770710",
+      "number": 9,
+      "title": "Tê! Thật là khủng khiếp dao phay",
+      "wordCount": 1224,
+      "publishedAt": "2026-10-22T15:26:10.710Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/te-that-la-khung-khiep-dao-phay"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c10-1792682835760",
+      "number": 10,
+      "title": "Tiền bối đối với dao phay yêu cầu đều cao như vậy?",
+      "wordCount": 1172,
+      "publishedAt": "2026-10-22T15:27:15.760Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/tien-boi-doi-voi-dao-phay-yeu-cau-deu-cao-nhu-vay"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c11-1792682870365",
+      "number": 11,
+      "title": "Giả dạng phế vật dạo chơi nhân gian đại lão",
+      "wordCount": 1423,
+      "publishedAt": "2026-10-22T15:27:50.365Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/gia-dang-phe-vat-dao-choi-nhan-gian-dai-lao"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c12-1792682905547",
+      "number": 12,
+      "title": "Ngươi liền lưu lại đến cho ta giữ cửa a",
+      "wordCount": 1521,
+      "publishedAt": "2026-10-22T15:28:25.547Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/nguoi-lien-luu-lai-den-cho-ta-giu-cua-a"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c13-1792682940281",
+      "number": 13,
+      "title": "Ta nhất định phải thoát đi tên nhân loại này độc thủ",
+      "wordCount": 1613,
+      "publishedAt": "2026-10-22T15:29:00.281Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/ta-nhat-dinh-phai-thoat-di-ten-nhan-loai-nay-doc-thu"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c14-1792682975672",
+      "number": 14,
+      "title": "Nguyên lai tiền bối là bồi dưỡng ta",
+      "wordCount": 1024,
+      "publishedAt": "2026-10-22T15:29:35.672Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/nguyen-lai-tien-boi-la-boi-duong-ta"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c15-1792683011233",
+      "number": 15,
+      "title": "Có khả năng gia nhập Thanh Sơn môn tu luyện là giấc mộng của ta",
+      "wordCount": 1074,
+      "publishedAt": "2026-10-22T15:30:11.233Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/co-kha-nang-gia-nhap-thanh-son-mon-tu-luyen-la-giac-mong-cua-ta"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c16-1792683045466",
+      "number": 16,
+      "title": "Muốn có thể mượn đến tiền bối đao, Huyền Vũ, không gì hơn cái này. . .",
+      "wordCount": 997,
+      "publishedAt": "2026-10-22T15:30:45.466Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/muon-co-the-muon-den-tien-boi-dao-huyen-vu-khong-gi-hon-cai-nay"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c17-1792683082438",
+      "number": 17,
+      "title": "Là xem thường ai đây",
+      "wordCount": 1018,
+      "publishedAt": "2026-10-22T15:31:22.438Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/la-xem-thuong-ai-day"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c18-1792683115870",
+      "number": 18,
+      "title": "Tiền bối hơi làm tiểu trừng phạt",
+      "wordCount": 1181,
+      "publishedAt": "2026-10-22T15:31:55.870Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/tien-boi-hoi-lam-tieu-trung-phat"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c19-1792683150525",
+      "number": 19,
+      "title": "Tiền bối tại hạ một bàn kinh thiên cờ lớn",
+      "wordCount": 1097,
+      "publishedAt": "2026-10-22T15:32:30.525Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/tien-boi-tai-ha-mot-ban-kinh-thien-co-lon"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c20-1792683186843",
+      "number": 20,
+      "title": "Dịch Phong đưa than sưởi ấm trong ngày tuyết rơi",
+      "wordCount": 1246,
+      "publishedAt": "2026-10-22T15:33:06.842Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/dich-phong-dua-than-suoi-am-trong-ngay-tuyet-roi"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c21-1792683220836",
+      "number": 21,
+      "title": "Lão nhân gia ngài, cũng đến nhìn ta chống hay không chống đỡ phía dưới a",
+      "wordCount": 1102,
+      "publishedAt": "2026-10-22T15:33:40.836Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/lao-nhan-gia-ngai-cu-ng-de-n-nhin-ta-chong-hay-khong-chong-do-phia-duoi-a"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c22-1792683255361",
+      "number": 22,
+      "title": "Cái này một dao phay xuống, toàn bộ mẹ nó hủy",
+      "wordCount": 1111,
+      "publishedAt": "2026-10-22T15:34:15.360Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/cai-nay-mot-dao-phay-xuong-toan-bo-me-no-huy"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c23-1792683290232",
+      "number": 23,
+      "title": "Hẹp hòi Thanh Sơn lão tổ",
+      "wordCount": 1360,
+      "publishedAt": "2026-10-22T15:34:50.232Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/hep-hoi-thanh-son-lao-to"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c24-1792683325738",
+      "number": 24,
+      "title": "Dị giới bản mặt trời nhỏ",
+      "wordCount": 1324,
+      "publishedAt": "2026-10-22T15:35:25.738Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/di-gioi-ban-mat-troi-nho"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c25-1792683360586",
+      "number": 25,
+      "title": "Khắp nơi tản ra tự kỷ khí tức lão đầu",
+      "wordCount": 929,
+      "publishedAt": "2026-10-22T15:36:00.586Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/khap-noi-tan-ra-tu-ky-khi-tuc-lao-dau"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c26-1792683396201",
+      "number": 26,
+      "title": "Người này tâm kế, cũng vượt quá ta dự liệu a",
+      "wordCount": 832,
+      "publishedAt": "2026-10-22T15:36:36.201Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/nguoi-nay-tam-ke-cu-ng-vuot-qua-ta-du-lieu-a"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c27-1792683431048",
+      "number": 27,
+      "title": "Ngọa tào, thánh phẩm thần bà?",
+      "wordCount": 1132,
+      "publishedAt": "2026-10-22T15:37:11.048Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/ngoa-tao-thanh-pham-than-ba"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c28-1792683466072",
+      "number": 28,
+      "title": "Lập thệ chi khế",
+      "wordCount": 1192,
+      "publishedAt": "2026-10-22T15:37:46.072Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/lap-the-chi-khe"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c29-1792683501202",
+      "number": 29,
+      "title": "Võ Vương chi chiến",
+      "wordCount": 1322,
+      "publishedAt": "2026-10-22T15:38:21.202Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/vo-vuong-chi-chien"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c30-1792683535397",
+      "number": 30,
+      "title": "Liền bắt nạt ngươi không có",
+      "wordCount": 1571,
+      "publishedAt": "2026-10-22T15:38:55.397Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/lien-bat-nat-nguoi-khong-co"
+    },
+    {
+      "id": "nguoi-tren-van-nguoi-267-c31-1792683570534",
+      "number": 31,
+      "title": "Có hi vọng lại một thôn",
+      "wordCount": 1543,
+      "publishedAt": "2026-10-22T15:39:30.534Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/nguoi-tren-van-nguoi/co-hi-vong-lai-mot-thon"
     }
   ]
 }
