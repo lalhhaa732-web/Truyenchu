@@ -1,7 +1,7 @@
 import { Novel } from '../types';
+import { loadSyncedNovelsFromRepo, isPriorityFeaturedNovel } from './syncedNovelsLoader';
 
 export const SAMPLE_NOVEL_IDS: string[] = [
-  'nguoi-tren-van-nguoi',
   'kiem-lai-thien-ha',
   'thanh-van-kiem-tich',
   'van-co-kiem-ton',
@@ -16,6 +16,8 @@ export const SAMPLE_NOVEL_IDS: string[] = [
   'cuu-chau-muc-linh-do'
 ];
 
-export const INITIAL_NOVELS: Novel[] = [];
+export const INITIAL_NOVELS: Novel[] = loadSyncedNovelsFromRepo();
+
+export { isPriorityFeaturedNovel };
 
 export const AUTO_CHAPTER_POOL: Record<string, { titles: string[]; paragraphs: string[][] }> = {};

@@ -23,7 +23,9 @@ import {
   UserPlus,
   Crown,
   ImagePlus,
-  Palette
+  Palette,
+  GitBranch,
+  PlusCircle
 } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -40,15 +42,20 @@ import {
   handleFirestoreError,
   OperationType
 } from './firebase';
-import { Novel, RealtimeUpdateEvent, ReaderSettings, ReadingProgress } from './types';
-import { INITIAL_NOVELS, SAMPLE_NOVEL_IDS } from './data/seedNovels';
+import { Novel, Chapter, RealtimeUpdateEvent, ReaderSettings, ReadingProgress } from './types';
+import { INITIAL_NOVELS, SAMPLE_NOVEL_IDS, isPriorityFeaturedNovel } from './data/seedNovels';
 import {
   BookCoverArtwork,
   BookCoverEditorModal,
   compressBookCoverFile
 } from './components/BookCoverArtwork';
 import { ReaderView } from './components/ReaderView';
-import { PublishChapterModal, CreateNovelPayload, ImportUrlPayload } from './components/PublishChapterModal';
+import {
+  PublishChapterModal,
+  CreateNovelPayload,
+  ImportUrlPayload,
+  PublishModalMode
+} from './components/PublishChapterModal';
 import {
   UserProfileModal,
   ProfileSectionType,
@@ -62,6 +69,18 @@ import {
   getReadingExpRule
 } from './components/UserProfileModal';
 import { AuthGoogleModal, AuthModalMode } from './components/AuthGoogleModal';
+import {
+  GitHubSyncConfig,
+  GitHubPushResult,
+  loadLocalGitHubConfig,
+  syncNovelsToGitHub,
+  fetchLatestSyncedNovelsFromGitHub,
+  loadCachedNovelsFromStorage,
+  saveCachedNovelsToStorage,
+  mergeNovelsLists,
+  extractUrlClientSide,
+  buildNovelFromClientExtraction
+} from './utils/githubSyncClient';
 
 const STORAGE_SETTINGS_KEY = 'mac_thu_cac_reader_settings_v1';
 const STORAGE_PROGRESS_KEY = 'mac_thu_cac_reading_progress_v2';
@@ -110,18 +129,25 @@ function applyCoverOverrides(list: Novel[]): Novel[] {
     return {
       ...novel,
       coverStyle: ov.coverStyle || novel.coverStyle,
-      coverImageUrl: ov.coverImageUrl !== undefined ? ov.coverImageUrl || undefined : novel.coverImageUrl
+      coverImageUrl:
+        typeof ov.coverImageUrl === 'string' && ov.coverImageUrl.trim().length > 0
+          ? ov.coverImageUrl.trim()
+          : novel.coverImageUrl
     };
   });
 }
 
 export default function App() {
-  const [novels, setNovels] = useState<Novel[]>(() => applyCoverOverrides(INITIAL_NOVELS));
+  const [novels, setNovels] = useState<Novel[]>(() => {
+    const cached = loadCachedNovelsFromStorage();
+    return applyCoverOverrides(mergeNovelsLists(INITIAL_NOVELS, cached));
+  });
   const [editingCoverNovelId, setEditingCoverNovelId] = useState<string | null>(null);
   const featuredCoverInputRef = useRef<HTMLInputElement | null>(null);
   const [wsConnected, setWsConnected] = useState<boolean>(false);
   const [activeReaders, setActiveReaders] = useState<number>(1);
   const [syncingNovelId, setSyncingNovelId] = useState<string | null>(null);
+  const [githubSyncToast, setGithubSyncToast] = useState<string | null>(null);
 
   // Firebase Auth state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -185,7 +211,7 @@ export default function App() {
   const [selectedGenre, setSelectedGenre] = useState<string>('Tất cả');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [readingState, setReadingState] = useState<{ novelId: string; chapterNumber: number } | null>(null);
-  const [modalState, setModalState] = useState<{ isOpen: boolean; mode: 'url' | 'novel' | 'chapter' }>({
+  const [modalState, setModalState] = useState<{ isOpen: boolean; mode: PublishModalMode }>({
     isOpen: false,
     mode: 'url'
   });
@@ -571,10 +597,38 @@ export default function App() {
   }, [readingState, userProfile.level]);
 
   useEffect(() => {
+    saveCachedNovelsToStorage(novels);
+  }, [novels]);
+
+  useEffect(() => {
+    // Ensure INITIAL_NOVELS from data/ and novels/ is always merged into state on mount
+    if (INITIAL_NOVELS.length > 0) {
+      setNovels((prev) => applyCoverOverrides(mergeNovelsLists(INITIAL_NOVELS, prev)));
+    }
+
     fetch('/api/novels')
       .then((r) => r.json())
       .then((data) => {
-        if (data.novels) setNovels(applyCoverOverrides(data.novels));
+        if (Array.isArray(data.novels) && data.novels.length > 0) {
+          setNovels((prev) =>
+            applyCoverOverrides(
+              mergeNovelsLists(mergeNovelsLists(INITIAL_NOVELS, data.novels), prev)
+            )
+          );
+        }
+      })
+      .catch(() => {});
+
+    // Also pull latest synced novels from GitHub raw catalog if repo is configured
+    fetchLatestSyncedNovelsFromGitHub()
+      .then((ghNovels) => {
+        if (ghNovels && ghNovels.length > 0) {
+          setNovels((prev) =>
+            applyCoverOverrides(
+              mergeNovelsLists(mergeNovelsLists(INITIAL_NOVELS, ghNovels), prev)
+            )
+          );
+        }
       })
       .catch(() => {});
 
@@ -595,7 +649,11 @@ export default function App() {
           const event: RealtimeUpdateEvent = JSON.parse(msg.data);
 
           if (event.type === 'init:state' && event.novels) {
-            setNovels(applyCoverOverrides(event.novels));
+            setNovels((prev) =>
+              applyCoverOverrides(
+                mergeNovelsLists(mergeNovelsLists(INITIAL_NOVELS, event.novels || []), prev)
+              )
+            );
             if (event.activeReaders) setActiveReaders(event.activeReaders);
           } else if (event.type === 'presence:update' && event.activeReaders) {
             setActiveReaders(event.activeReaders);
@@ -668,9 +726,59 @@ export default function App() {
     };
   }, []);
 
-  const mergeReturnedNovelAndChapter = (returnedNovel: Novel, returnedChapter?: Novel['chapters'][number]) => {
-    setNovels((prevNovels) =>
-      applyCoverOverrides(
+  const showGitHubToast = (message: string) => {
+    setGithubSyncToast(message);
+    window.setTimeout(() => {
+      setGithubSyncToast((curr) => (curr === message ? null : curr));
+    }, 4500);
+  };
+
+  const triggerAutoGitHubPush = async (nextNovels: Novel[], commitMessage: string) => {
+    const cfg = loadLocalGitHubConfig();
+    if (!cfg.autoPush) return;
+    const res = await syncNovelsToGitHub(nextNovels, commitMessage);
+    if (res.success) {
+      showGitHubToast(
+        `Đã tự động đồng bộ lên GitHub (${res.commitSha ? res.commitSha.slice(0, 7) : 'data/ & novels/'})`
+      );
+    }
+  };
+
+  const handlePushToGitHub = async (
+    configOverride?: Partial<GitHubSyncConfig>,
+    commitMessage?: string
+  ): Promise<GitHubPushResult> => {
+    const res = await syncNovelsToGitHub(novels, commitMessage, configOverride);
+    if (res.success) {
+      showGitHubToast(
+        `Đã đẩy ${novels.length} truyện lên GitHub (${res.commitSha?.slice(0, 7) || 'thành công'})!`
+      );
+    }
+    return res;
+  };
+
+  const handlePullFromGitHub = async (configOverride?: Partial<GitHubSyncConfig>): Promise<number> => {
+    const mergedCfg = { ...loadLocalGitHubConfig(), ...configOverride };
+    const ghNovels = await fetchLatestSyncedNovelsFromGitHub(mergedCfg);
+    if (ghNovels && ghNovels.length > 0) {
+      setNovels((prev) => {
+        const merged = applyCoverOverrides(mergeNovelsLists(ghNovels, prev));
+        saveCachedNovelsToStorage(merged);
+        return merged;
+      });
+      showGitHubToast(`Đã nạp ${ghNovels.length} truyện từ GitHub!`);
+      return ghNovels.length;
+    }
+    return 0;
+  };
+
+  const mergeReturnedNovelAndChapter = (
+    returnedNovel: Novel,
+    returnedChapter?: Novel['chapters'][number],
+    commitNote?: string
+  ) => {
+    setNovels((prevNovels) => {
+      const updatedList = applyCoverOverrides(
         prevNovels.map((n) => {
           if (n.id !== returnedNovel.id) return n;
           const combinedChapters = returnedChapter
@@ -682,8 +790,13 @@ export default function App() {
             chapters: combinedChapters
           });
         })
-      )
-    );
+      );
+      saveCachedNovelsToStorage(updatedList);
+      if (commitNote) {
+        triggerAutoGitHubPush(updatedList, commitNote).catch(() => {});
+      }
+      return updatedList;
+    });
   };
 
   const handlePublishChapter = async (
@@ -692,32 +805,108 @@ export default function App() {
     content?: string,
     chapterUrl?: string
   ) => {
-    const res = await fetch(`/api/novels/${novelId}/chapters`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content, chapterUrl })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.novel && data.chapter) {
-        mergeReturnedNovelAndChapter(data.novel, data.chapter);
-        await syncNovelAndChapterToFirestore(data.novel, data.chapter).catch(() => {});
+    try {
+      const res = await fetch(`/api/novels/${novelId}/chapters`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, chapterUrl })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.novel && data.chapter) {
+          mergeReturnedNovelAndChapter(
+            data.novel,
+            data.chapter,
+            `feat(chapter): đăng chương ${data.chapter.number} truyện ${data.novel.title}`
+          );
+          await syncNovelAndChapterToFirestore(data.novel, data.chapter).catch(() => {});
+          return;
+        }
+      }
+    } catch {
+      // Fallback to client-side chapter publish when running on static Vercel host
+    }
+
+    // Client-side fallback (for Vercel static deployment)
+    const target = novels.find((n) => n.id === novelId);
+    if (!target) return;
+
+    let paragraphs: string[] = [];
+    let resolvedTitle = title?.trim() || '';
+    let resolvedSourceUrl = chapterUrl?.trim() || undefined;
+
+    if (resolvedSourceUrl) {
+      try {
+        const extracted = await extractUrlClientSide(resolvedSourceUrl);
+        if (extracted.paragraphs.length > 0) paragraphs = extracted.paragraphs;
+        if (!resolvedTitle) resolvedTitle = extracted.chapterTitle || extracted.title;
+      } catch {
+        // ignore
       }
     }
+
+    if (paragraphs.length === 0 && content && content.trim()) {
+      paragraphs = content
+        .split(/\n+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    const nextNum =
+      Math.max(target.chapters.length, ...target.chapters.map((c) => Number(c.number) || 0)) + 1;
+    if (paragraphs.length === 0) {
+      paragraphs = [`Nội dung chương ${nextNum} của "${target.title}".`];
+    }
+    const nowIso = new Date().toISOString();
+    const newChapter: Chapter = {
+      id: `${target.id}-c${nextNum}-${Date.now()}`,
+      novelId: target.id,
+      number: nextNum,
+      title: resolvedTitle || `Chương ${nextNum}`,
+      content: paragraphs,
+      wordCount: paragraphs.reduce((acc, p) => acc + p.trim().split(/\s+/).length, 0),
+      publishedAt: nowIso,
+      ...(resolvedSourceUrl ? { sourceChapterUrl: resolvedSourceUrl } : {})
+    };
+    const updatedNovel: Novel = normalizeNovelChapters({
+      ...target,
+      updatedAt: nowIso,
+      chapters: [...target.chapters, newChapter]
+    });
+
+    mergeReturnedNovelAndChapter(
+      updatedNovel,
+      newChapter,
+      `feat(chapter): đăng chương ${newChapter.number} truyện ${updatedNovel.title}`
+    );
+    await syncNovelAndChapterToFirestore(updatedNovel, newChapter).catch(() => {});
   };
 
   const handleQuickAutoRelease = async (novelId?: string) => {
-    const res = await fetch('/api/realtime/release-next', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ novelId })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.novel && data.chapter) {
-        mergeReturnedNovelAndChapter(data.novel, data.chapter);
-        await syncNovelAndChapterToFirestore(data.novel, data.chapter).catch(() => {});
+    try {
+      const res = await fetch('/api/realtime/release-next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ novelId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.novel && data.chapter) {
+          mergeReturnedNovelAndChapter(
+            data.novel,
+            data.chapter,
+            `feat(chapter): cập nhật chương ${data.chapter.number} truyện ${data.novel.title}`
+          );
+          await syncNovelAndChapterToFirestore(data.novel, data.chapter).catch(() => {});
+          return;
+        }
       }
+    } catch {
+      // Fallback to handleSyncSingleNovelUrl
+    }
+    const targetId = novelId || novels[0]?.id;
+    if (targetId) {
+      await handleSyncSingleNovelUrl(targetId);
     }
   };
 
@@ -725,18 +914,76 @@ export default function App() {
     if (syncingNovelId) return null;
     setSyncingNovelId(novelId);
     try {
-      const res = await fetch(`/api/novels/${novelId}/sync-url`, {
-        method: 'POST'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.novel && data.chapter) {
-          mergeReturnedNovelAndChapter(data.novel, data.chapter);
-          await syncNovelAndChapterToFirestore(data.novel, data.chapter).catch(() => {});
-          return Number(data.chapter.number) || null;
+      try {
+        const res = await fetch(`/api/novels/${novelId}/sync-url`, {
+          method: 'POST'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.novel && data.chapter) {
+            mergeReturnedNovelAndChapter(
+              data.novel,
+              data.chapter,
+              `feat(sync): đồng bộ chương ${data.chapter.number} truyện ${data.novel.title}`
+            );
+            await syncNovelAndChapterToFirestore(data.novel, data.chapter).catch(() => {});
+            return Number(data.chapter.number) || null;
+          }
         }
+      } catch {
+        // Fallback to client-side URL sync on Vercel static host
       }
-      return null;
+
+      const target = novels.find((n) => n.id === novelId);
+      if (!target) return null;
+
+      const pending = [...(target.pendingChapterLinks || [])];
+      const nextLink = pending.shift();
+      const urlToFetch = nextLink?.url || target.sourceUrl;
+      if (!urlToFetch) return null;
+
+      const extracted = await extractUrlClientSide(urlToFetch);
+      if (extracted.nextChapterUrl && !pending.some((l) => l.url === extracted.nextChapterUrl)) {
+        pending.unshift({
+          title: extracted.nextChapterTitle || 'Chương tiếp theo',
+          url: extracted.nextChapterUrl
+        });
+      }
+
+      const nextNum =
+        Math.max(target.chapters.length, ...target.chapters.map((c) => Number(c.number) || 0)) + 1;
+      const nowIso = new Date().toISOString();
+      const paragraphs =
+        extracted.paragraphs.length > 0
+          ? extracted.paragraphs
+          : [`Nội dung chương ${nextNum} được đồng bộ từ ${urlToFetch}.`];
+
+      const newChapter: Chapter = {
+        id: `${target.id}-c${nextNum}-${Date.now()}`,
+        novelId: target.id,
+        number: nextNum,
+        title: extracted.chapterTitle || nextLink?.title || `Chương ${nextNum}`,
+        content: paragraphs,
+        wordCount: paragraphs.reduce((acc, p) => acc + p.trim().split(/\s+/).length, 0),
+        publishedAt: nowIso,
+        sourceChapterUrl: urlToFetch
+      };
+
+      const updatedNovel: Novel = normalizeNovelChapters({
+        ...target,
+        updatedAt: nowIso,
+        lastSyncedAt: nowIso,
+        pendingChapterLinks: pending,
+        chapters: [...target.chapters, newChapter]
+      });
+
+      mergeReturnedNovelAndChapter(
+        updatedNovel,
+        newChapter,
+        `feat(sync): đồng bộ chương ${newChapter.number} truyện ${updatedNovel.title}`
+      );
+      await syncNovelAndChapterToFirestore(updatedNovel, newChapter).catch(() => {});
+      return nextNum;
     } catch {
       return null;
     } finally {
@@ -745,52 +992,124 @@ export default function App() {
   };
 
   const handleCreateNovel = async (payload: CreateNovelPayload) => {
-    const res = await fetch('/api/novels', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.novel) {
-        setNovels((prev) => {
-          if (prev.some((n) => n.id === data.novel.id)) return prev;
-          return [data.novel, ...prev];
-        });
-        setBookmarkedIds((prev) =>
-          prev.includes(data.novel.id) ? prev : [data.novel.id, ...prev]
-        );
-        await syncNovelAndChapterToFirestore(data.novel, data.novel.chapters?.[0]);
-        await syncUserProgressToFirestore(data.novel.id, 1, true, data.novel);
+    let createdNovel: Novel | null = null;
+    try {
+      const res = await fetch('/api/novels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.novel) createdNovel = data.novel;
       }
+    } catch {
+      // Fallback to client-side novel creation on Vercel static host
     }
+
+    if (!createdNovel) {
+      const slugId =
+        payload.title
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '') +
+        '-' +
+        Math.floor(100 + Math.random() * 900);
+      const nowIso = new Date().toISOString();
+      const paragraphs = payload.firstChapterContent
+        ? payload.firstChapterContent
+            .split(/\n+/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [payload.synopsis || `Chương mở đầu của ${payload.title}.`];
+      const chap1: Chapter = {
+        id: `${slugId}-c1`,
+        novelId: slugId,
+        number: 1,
+        title: payload.firstChapterTitle || 'Khởi đầu hành trình',
+        content: paragraphs,
+        wordCount: paragraphs.reduce((acc, p) => acc + p.trim().split(/\s+/).length, 0),
+        publishedAt: nowIso
+      };
+      createdNovel = {
+        id: slugId,
+        title: payload.title,
+        author: payload.author || 'Ẩn Danh',
+        genre: payload.genre || 'Tiên Hiệp',
+        status: 'Đang ra',
+        synopsis: payload.synopsis || `Tác phẩm ${payload.genre} của ${payload.author}.`,
+        coverStyle: payload.coverStyle || 'ink-mountain',
+        ...(payload.coverImageUrl ? { coverImageUrl: payload.coverImageUrl } : {}),
+        views: 1,
+        rating: 5.0,
+        updatedAt: nowIso,
+        chapters: [chap1]
+      };
+    }
+
+    const finalNovel = createdNovel;
+    setNovels((prev) => {
+      const next = prev.some((n) => n.id === finalNovel.id)
+        ? prev
+        : applyCoverOverrides([finalNovel, ...prev]);
+      saveCachedNovelsToStorage(next);
+      triggerAutoGitHubPush(next, `feat(novel): thêm truyện mới ${finalNovel.title}`).catch(
+        () => {}
+      );
+      return next;
+    });
+    setBookmarkedIds((prev) => (prev.includes(finalNovel.id) ? prev : [finalNovel.id, ...prev]));
+    await syncNovelAndChapterToFirestore(finalNovel, finalNovel.chapters?.[0]).catch(() => {});
+    await syncUserProgressToFirestore(finalNovel.id, 1, true, finalNovel).catch(() => {});
   };
 
   const handleImportUrlNovel = async (payload: ImportUrlPayload) => {
-    const res = await fetch('/api/novels/import-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.novel) {
-        setNovels((prev) => {
-          if (prev.some((n) => n.id === data.novel.id)) return prev;
-          return [data.novel, ...prev];
-        });
-        setBookmarkedIds((prev) =>
-          prev.includes(data.novel.id) ? prev : [data.novel.id, ...prev]
-        );
-        await syncNovelAndChapterToFirestore(data.novel, data.novel.chapters?.[0]);
-        await syncUserProgressToFirestore(data.novel.id, 1, true, data.novel);
+    let importedNovel: Novel | null = null;
+    try {
+      const res = await fetch('/api/novels/import-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.novel) importedNovel = data.novel;
       }
+    } catch {
+      // Fallback to client-side URL import when running on Vercel static host
     }
+
+    if (!importedNovel) {
+      const extracted = await extractUrlClientSide(payload.url);
+      importedNovel = buildNovelFromClientExtraction(extracted, payload);
+    }
+
+    const finalNovel = importedNovel;
+    setNovels((prev) => {
+      const next = prev.some((n) => n.id === finalNovel.id)
+        ? prev
+        : applyCoverOverrides([finalNovel, ...prev]);
+      saveCachedNovelsToStorage(next);
+      triggerAutoGitHubPush(next, `feat(import): đồng bộ truyện ${finalNovel.title} từ URL`).catch(
+        () => {}
+      );
+      return next;
+    });
+    setBookmarkedIds((prev) => (prev.includes(finalNovel.id) ? prev : [finalNovel.id, ...prev]));
+    await syncNovelAndChapterToFirestore(finalNovel, finalNovel.chapters?.[0]).catch(() => {});
+    await syncUserProgressToFirestore(finalNovel.id, 1, true, finalNovel).catch(() => {});
   };
 
   const handleDeleteNovel = async (novelId: string) => {
     if (!isAdmin) return;
-    setNovels((prev) => prev.filter((n) => n.id !== novelId));
+    setNovels((prev) => {
+      const next = prev.filter((n) => n.id !== novelId);
+      saveCachedNovelsToStorage(next);
+      triggerAutoGitHubPush(next, `chore(novel): xoá truyện ${novelId}`).catch(() => {});
+      return next;
+    });
     setBookmarkedIds((prev) => {
       const next = prev.filter((id) => id !== novelId);
       try {
@@ -821,8 +1140,8 @@ export default function App() {
     }
 
     let updatedTarget: Novel | undefined;
-    setNovels((prev) =>
-      prev.map((novel) => {
+    setNovels((prev) => {
+      const nextList = prev.map((novel) => {
         if (novel.id !== novelId) return novel;
         const nextNovel: Novel = {
           ...novel,
@@ -831,8 +1150,13 @@ export default function App() {
         };
         updatedTarget = nextNovel;
         return nextNovel;
-      })
-    );
+      });
+      saveCachedNovelsToStorage(nextList);
+      triggerAutoGitHubPush(nextList, `style(cover): cập nhật bìa truyện ${novelId}`).catch(
+        () => {}
+      );
+      return nextList;
+    });
 
     fetch(`/api/novels/${novelId}/cover`, {
       method: 'PATCH',
@@ -932,7 +1256,8 @@ export default function App() {
       ? dynamicGenres
       : dynamicGenres.filter((g) => g === selectedGenre);
 
-  const featuredNovel = novels[0] || null;
+  const featuredNovel =
+    novels.find((n) => isPriorityFeaturedNovel(n)) || novels[0] || null;
   const latestFeaturedChapter =
     featuredNovel && featuredNovel.chapters.length > 0
       ? featuredNovel.chapters[featuredNovel.chapters.length - 1]
@@ -966,8 +1291,28 @@ export default function App() {
           </a>
         </div>
 
-        {/* Right Zone: User Avatar with Liquid Glass Effect (unlocked at Lv 50+) & Dropdown Menu */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0" ref={avatarMenuRef}>
+        {/* Right Zone: Quick Publish / GitHub Sync + User Avatar with Liquid Glass Effect (unlocked at Lv 50+) & Dropdown Menu */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0" ref={avatarMenuRef}>
+          <button
+            type="button"
+            onClick={() => setModalState({ isOpen: true, mode: 'url' })}
+            className="hidden sm:inline-flex min-h-[34px] px-3 py-1.5 rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-950 text-xs font-semibold items-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
+            title="Nhập truyện từ URL, đăng chương mới hoặc đồng bộ lên GitHub"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 dark:text-amber-600 shrink-0" />
+            <span>Nhập URL / Đăng Chương</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setModalState({ isOpen: true, mode: 'github' })}
+            className="min-h-[34px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-800/10 hover:bg-amber-800/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-amber-700/30 dark:border-amber-400/30 text-amber-900 dark:text-amber-300 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Đồng bộ truyện và chương mới lên GitHub (Vercel)"
+          >
+            <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden md:inline">Đồng Bộ GitHub</span>
+          </button>
+
           {/* Top-right Avatar Trigger */}
           <div className="relative flex items-center justify-center">
             {hasLiquidGlass && avatarBurstKey > 0 && (
@@ -1297,6 +1642,34 @@ export default function App() {
                     {settings.theme === 'dark' ? 'Nền tối' : 'Nền sáng'}
                   </span>
                 </button>
+
+                <div className="pt-2 mt-2 border-t border-stone-200 dark:border-stone-800 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setModalState({ isOpen: true, mode: 'url' });
+                    }}
+                    className="w-full min-h-[42px] px-3.5 rounded-xl flex items-center gap-3 text-xs font-semibold text-stone-800 dark:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 shrink-0 text-amber-700 dark:text-amber-400" />
+                    <span>Nhập Truyện URL / Đăng Chương</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setModalState({ isOpen: true, mode: 'github' });
+                    }}
+                    className="w-full min-h-[42px] px-3.5 rounded-xl flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-300 bg-amber-800/10 dark:bg-amber-500/15 hover:bg-amber-800/20 dark:hover:bg-amber-500/25 border border-amber-700/25 dark:border-amber-400/25 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <RefreshCw className="w-4 h-4 shrink-0" />
+                      <span>Đồng Bộ Lên GitHub (Vercel)</span>
+                    </div>
+                  </button>
+                </div>
               </nav>
             </div>
 
@@ -1471,6 +1844,14 @@ export default function App() {
                 >
                   <BookOpen className="w-3.5 h-3.5" />
                   <span>Tự đăng truyện mới</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalState({ isOpen: true, mode: 'github' })}
+                  className="min-h-[38px] px-4 py-2 rounded-xl bg-amber-800/10 hover:bg-amber-800/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-amber-700/30 dark:border-amber-400/30 text-amber-900 dark:text-amber-300 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Đồng bộ với GitHub (Vercel)</span>
                 </button>
               </div>
             </section>
@@ -1974,6 +2355,13 @@ export default function App() {
         )}
       </main>
 
+      {githubSyncToast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 rounded-xl bg-stone-900/95 dark:bg-stone-100/95 text-white dark:text-stone-950 text-xs font-medium shadow-xl border border-white/10 flex items-center gap-2.5">
+          <Sparkles className="w-4 h-4 text-amber-400 dark:text-amber-600 shrink-0" />
+          <span className="leading-snug">{githubSyncToast}</span>
+        </div>
+      )}
+
       <PublishChapterModal
         isOpen={modalState.isOpen}
         initialMode={modalState.mode}
@@ -1983,6 +2371,8 @@ export default function App() {
         onQuickAutoRelease={handleQuickAutoRelease}
         onCreateNovel={handleCreateNovel}
         onImportUrlNovel={handleImportUrlNovel}
+        onPushToGitHub={handlePushToGitHub}
+        onPullFromGitHub={handlePullFromGitHub}
       />
 
       <UserProfileModal

@@ -17,10 +17,12 @@ import {
   Trash2,
   PlusCircle,
   Radio,
-  Link2
+  Link2,
+  GitBranch
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Novel, ReaderSettings, FEMALE_VOICE_OPTIONS } from '../types';
+import { PublishModalMode } from './PublishChapterModal';
 
 export type ProfileSectionType = 'account' | 'profile' | 'settings' | 'title' | 'admin' | null;
 
@@ -303,7 +305,7 @@ interface UserProfileModalProps {
   bookmarkedCount: number;
   readNovelsCount: number;
   novels: Novel[];
-  onOpenPublishModal: (mode: 'url' | 'novel' | 'chapter') => void;
+  onOpenPublishModal: (mode: PublishModalMode) => void;
   onTriggerLiveBroadcast: () => void;
   onDeleteNovel: (novelId: string) => void;
   readingSecondsInCycle?: number;
@@ -1221,6 +1223,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   >
                     <Radio className="w-4 h-4 text-amber-400 shrink-0" />
                     <span className="truncate">Phát sóng chương mới</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenPublishModal('github');
+                    }}
+                    className="sm:col-span-2 p-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 flex items-center justify-center gap-2.5 text-xs font-semibold text-emerald-200 transition-colors min-w-0 cursor-pointer"
+                  >
+                    <GitBranch className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate">Đồng bộ truyện & chương mới lên GitHub (Vercel)</span>
                   </button>
                 </div>
               </div>

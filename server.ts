@@ -15,8 +15,188 @@ function countWords(paragraphs: string[]): number {
   return paragraphs.reduce((acc, p) => acc + p.trim().split(/\s+/).length, 0);
 }
 
+const DATA_SYNC_FILE = path.join(process.cwd(), 'data', 'synced-novels.json');
+const NOVELS_DIR = path.join(process.cwd(), 'novels');
+
+function loadDiskSyncedNovels(): Novel[] {
+  const byId = new Map<string, Novel>();
+
+  for (const seed of INITIAL_NOVELS) {
+    if (seed && seed.id) {
+      byId.set(seed.id, JSON.parse(JSON.stringify(seed)));
+    }
+  }
+
+  try {
+    if (fs.existsSync(DATA_SYNC_FILE)) {
+      const raw = fs.readFileSync(DATA_SYNC_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.novels)) {
+        for (const item of parsed.novels) {
+          if (item && item.id && item.title) {
+            byId.set(item.id, item);
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (fs.existsSync(NOVELS_DIR)) {
+      const slugs = fs.readdirSync(NOVELS_DIR, { withFileTypes: true });
+      for (const dirent of slugs) {
+        if (!dirent.isDirectory()) continue;
+        const novelDir = path.join(NOVELS_DIR, dirent.name);
+        const metaFile = path.join(novelDir, 'novel.json');
+        if (!fs.existsSync(metaFile)) continue;
+
+        const meta = JSON.parse(fs.readFileSync(metaFile, 'utf-8'));
+        if (!meta || !meta.id || !meta.title) continue;
+
+        const chaptersDir = path.join(novelDir, 'chapters');
+        const folderChapters: Chapter[] = [];
+        if (fs.existsSync(chaptersDir)) {
+          const chapFiles = fs.readdirSync(chaptersDir).filter((f) => f.endsWith('.json'));
+          for (const cf of chapFiles) {
+            try {
+              const ch = JSON.parse(fs.readFileSync(path.join(chaptersDir, cf), 'utf-8'));
+              if (ch && typeof ch === 'object') {
+                folderChapters.push({
+                  ...ch,
+                  number: Number(ch.number) || folderChapters.length + 1,
+                  content: Array.isArray(ch.content) ? ch.content : []
+                });
+              }
+            } catch {
+              // ignore malformed chapter file
+            }
+          }
+        }
+
+        const existing = byId.get(meta.id);
+        const chapMap = new Map<number, Chapter>();
+        for (const ch of [...(existing?.chapters || []), ...folderChapters]) {
+          if (!ch || typeof ch !== 'object') continue;
+          const num = Number(ch.number) || 1;
+          const prev = chapMap.get(num);
+          if (!prev || (ch.content?.length || 0) >= (prev.content?.length || 0)) {
+            chapMap.set(num, { ...ch, number: num });
+          }
+        }
+        const mergedChapters = Array.from(chapMap.values()).sort((a, b) => a.number - b.number);
+
+        byId.set(meta.id, {
+          ...existing,
+          ...meta,
+          status: meta.status === 'Hoàn thành' ? 'Hoàn thành' : 'Đang ra',
+          coverStyle: meta.coverStyle || existing?.coverStyle || 'star-nebula',
+          views: Math.max(Number(meta.views) || 0, Number(existing?.views) || 0, 1),
+          rating: Number(meta.rating) || existing?.rating || 5.0,
+          updatedAt: meta.updatedAt || existing?.updatedAt || new Date().toISOString(),
+          chapters: mergedChapters
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return Array.from(byId.values());
+}
+
+function saveNovelsToLocalDisk(novels: Novel[]): void {
+  try {
+    const dataDir = path.dirname(DATA_SYNC_FILE);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    const normalizedNovels = novels.map((novel) => {
+      const chapters = [...(novel.chapters || [])].sort(
+        (a, b) => (Number(a.number) || 1) - (Number(b.number) || 1)
+      );
+      return {
+        ...novel,
+        chapterCount: chapters.length,
+        chaptersIndex: chapters.map((c) => ({
+          id: c.id,
+          number: c.number,
+          title: c.title,
+          wordCount: c.wordCount,
+          publishedAt: c.publishedAt,
+          ...(c.sourceChapterUrl ? { sourceChapterUrl: c.sourceChapterUrl } : {})
+        })),
+        chapters
+      };
+    });
+
+    fs.writeFileSync(
+      DATA_SYNC_FILE,
+      JSON.stringify(
+        {
+          updatedAt: new Date().toISOString(),
+          totalNovels: normalizedNovels.length,
+          novels: normalizedNovels
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
+
+    if (!fs.existsSync(NOVELS_DIR)) {
+      fs.mkdirSync(NOVELS_DIR, { recursive: true });
+    }
+
+    for (const novel of normalizedNovels) {
+      const safeSlug =
+        novel.id
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, '-')
+          .replace(/(^-|-$)/g, '') || 'novel';
+      const novelFolder = path.join(NOVELS_DIR, safeSlug);
+      const chaptersFolder = path.join(novelFolder, 'chapters');
+      fs.mkdirSync(chaptersFolder, { recursive: true });
+
+      const { chapters, ...novelMeta } = novel;
+      fs.writeFileSync(
+        path.join(novelFolder, 'novel.json'),
+        JSON.stringify(
+          {
+            ...novelMeta,
+            chapterCount: chapters.length,
+            chaptersIndex: chapters.map((c) => ({
+              id: c.id,
+              number: c.number,
+              title: c.title,
+              wordCount: c.wordCount,
+              publishedAt: c.publishedAt,
+              ...(c.sourceChapterUrl ? { sourceChapterUrl: c.sourceChapterUrl } : {})
+            }))
+          },
+          null,
+          2
+        ),
+        'utf-8'
+      );
+
+      for (const ch of chapters) {
+        fs.writeFileSync(
+          path.join(chaptersFolder, `chapter-${ch.number}.json`),
+          JSON.stringify(ch, null, 2),
+          'utf-8'
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Failed to write synced novels to local disk:', err);
+  }
+}
+
 // Server-authoritative state
-const novelsState: Novel[] = JSON.parse(JSON.stringify(INITIAL_NOVELS));
+const novelsState: Novel[] = loadDiskSyncedNovels();
+saveNovelsToLocalDisk(novelsState);
 const recentEvents: RealtimeUpdateEvent[] = [];
 
 function decodeHtmlEntities(str: string): string {
@@ -1289,6 +1469,7 @@ async function startServer() {
     };
 
     novelsState.unshift(newNovel);
+    saveNovelsToLocalDisk(novelsState);
 
     const event: RealtimeUpdateEvent = {
       id: `evt-novel-${newNovel.id}`,
@@ -1321,6 +1502,7 @@ async function startServer() {
     }
 
     const newChapter = await syncNovelFromSourceUrl(novel);
+    saveNovelsToLocalDisk(novelsState);
 
     const event: RealtimeUpdateEvent = {
       id: `evt-${newChapter.id}`,
@@ -1353,6 +1535,7 @@ async function startServer() {
       return;
     }
     novel.autoFetchEnabled = Boolean(autoFetchEnabled);
+    saveNovelsToLocalDisk(novelsState);
     res.json({ novel });
   });
 
@@ -1379,6 +1562,7 @@ async function startServer() {
       }
     }
     novel.updatedAt = new Date().toISOString();
+    saveNovelsToLocalDisk(novelsState);
 
     const event: RealtimeUpdateEvent = {
       id: `evt-cover-${novel.id}-${Date.now()}`,
@@ -1400,6 +1584,7 @@ async function startServer() {
     if (idx !== -1) {
       novelsState.splice(idx, 1);
     }
+    saveNovelsToLocalDisk(novelsState);
 
     broadcastEvent({
       id: `evt-del-${novelId}-${Date.now()}`,
@@ -1776,6 +1961,7 @@ async function startServer() {
     };
 
     novelsState.unshift(newNovel);
+    saveNovelsToLocalDisk(novelsState);
 
     const event: RealtimeUpdateEvent = {
       id: `evt-novel-${newNovel.id}`,
@@ -1862,6 +2048,8 @@ async function startServer() {
         ? await syncNovelFromSourceUrl(novel)
         : generateNextChapterForNovel(novel, resolvedTitle, parsedParagraphs, resolvedSourceUrl);
 
+    saveNovelsToLocalDisk(novelsState);
+
     const event: RealtimeUpdateEvent = {
       id: `evt-${newChapter.id}`,
       type: 'chapter:published',
@@ -1904,6 +2092,8 @@ async function startServer() {
       ? await syncNovelFromSourceUrl(targetNovel)
       : generateNextChapterForNovel(targetNovel);
 
+    saveNovelsToLocalDisk(novelsState);
+
     const event: RealtimeUpdateEvent = {
       id: `evt-${newChapter.id}`,
       type: 'chapter:published',
@@ -1925,6 +2115,246 @@ async function startServer() {
     });
   });
 
+  // GitHub Synchronization endpoints (saves to local /data/synced-novels.json & /novels/ and pushes to GitHub API)
+  app.get('/api/github/status', (_req, res) => {
+    res.json({
+      novelsCount: novelsState.length,
+      totalChapters: novelsState.reduce((acc, n) => acc + (n.chapters?.length || 0), 0),
+      hasEnvToken: Boolean(process.env.GITHUB_TOKEN),
+      envOwner: process.env.GITHUB_OWNER || '',
+      envRepo: process.env.GITHUB_REPO || '',
+      envBranch: process.env.GITHUB_BRANCH || 'main'
+    });
+  });
+
+  app.post('/api/github/push', async (req, res) => {
+    const {
+      novels: incomingNovels,
+      commitMessage,
+      token: reqToken,
+      owner: reqOwner,
+      repo: reqRepo,
+      branch: reqBranch
+    } = req.body as {
+      novels?: Novel[];
+      commitMessage?: string;
+      token?: string;
+      owner?: string;
+      repo?: string;
+      branch?: string;
+    };
+
+    if (Array.isArray(incomingNovels) && incomingNovels.length > 0) {
+      const byId = new Map<string, Novel>();
+      for (const n of [...novelsState, ...incomingNovels]) {
+        if (n && n.id && n.title) {
+          byId.set(n.id, n);
+        }
+      }
+      novelsState.length = 0;
+      novelsState.push(...Array.from(byId.values()));
+    }
+
+    const targetNovels = Array.isArray(incomingNovels) ? incomingNovels : novelsState;
+    saveNovelsToLocalDisk(targetNovels);
+
+    const token = (reqToken || process.env.GITHUB_TOKEN || '').trim();
+    const owner = (reqOwner || process.env.GITHUB_OWNER || '').trim();
+    const repo = (reqRepo || process.env.GITHUB_REPO || '').trim().replace(/\.git$/i, '');
+    const branch = (reqBranch || process.env.GITHUB_BRANCH || 'main').trim() || 'main';
+
+    if (!token || !owner || !repo) {
+      res.status(400).json({
+        success: false,
+        savedToLocalDisk: true,
+        error: 'Đã lưu vào data/synced-novels.json & novels/ trên máy chủ, nhưng thiếu GitHub Token hoặc Owner/Repo để đẩy lên GitHub.'
+      });
+      return;
+    }
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'MacThuCac-Sync'
+    };
+
+    try {
+      const refRes = await fetch(
+        `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/ref/heads/${encodeURIComponent(branch)}`,
+        { headers }
+      );
+      if (!refRes.ok) {
+        const errBody = await refRes.json().catch(() => ({}));
+        res.status(400).json({
+          success: false,
+          error:
+            (errBody as { message?: string }).message ||
+            `Không tìm thấy nhánh "${branch}" trên repo ${owner}/${repo} (HTTP ${refRes.status}).`
+        });
+        return;
+      }
+      const refData = (await refRes.json()) as { object: { sha: string } };
+      const latestCommitSha = refData.object.sha;
+
+      const commitRes = await fetch(
+        `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/commits/${latestCommitSha}`,
+        { headers }
+      );
+      if (!commitRes.ok) {
+        res.status(400).json({
+          success: false,
+          error: `Không thể đọc commit gốc trên GitHub (HTTP ${commitRes.status}).`
+        });
+        return;
+      }
+      const commitData = (await commitRes.json()) as { tree: { sha: string } };
+      const baseTreeSha = commitData.tree.sha;
+
+      const nowIso = new Date().toISOString();
+      const treeItems: { path: string; mode: string; type: string; content: string }[] = [
+        {
+          path: 'data/synced-novels.json',
+          mode: '100644',
+          type: 'blob',
+          content: JSON.stringify(
+            {
+              updatedAt: nowIso,
+              totalNovels: targetNovels.length,
+              novels: targetNovels
+            },
+            null,
+            2
+          )
+        }
+      ];
+
+      for (const novel of targetNovels) {
+        const safeSlug =
+          novel.id
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]+/g, '-')
+            .replace(/(^-|-$)/g, '') || 'novel';
+        const { chapters, ...novelMeta } = novel;
+        treeItems.push({
+          path: `novels/${safeSlug}/novel.json`,
+          mode: '100644',
+          type: 'blob',
+          content: JSON.stringify(
+            {
+              ...novelMeta,
+              chapterCount: chapters.length,
+              chaptersIndex: chapters.map((c) => ({
+                id: c.id,
+                number: c.number,
+                title: c.title,
+                wordCount: c.wordCount,
+                publishedAt: c.publishedAt,
+                ...(c.sourceChapterUrl ? { sourceChapterUrl: c.sourceChapterUrl } : {})
+              }))
+            },
+            null,
+            2
+          )
+        });
+
+        for (const ch of chapters) {
+          treeItems.push({
+            path: `novels/${safeSlug}/chapters/chapter-${ch.number}.json`,
+            mode: '100644',
+            type: 'blob',
+            content: JSON.stringify(ch, null, 2)
+          });
+        }
+      }
+
+      const treeRes = await fetch(
+        `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            base_tree: baseTreeSha,
+            tree: treeItems
+          })
+        }
+      );
+      if (!treeRes.ok) {
+        const errBody = await treeRes.json().catch(() => ({}));
+        res.status(400).json({
+          success: false,
+          error: (errBody as { message?: string }).message || `Lỗi tạo Git Tree (HTTP ${treeRes.status}).`
+        });
+        return;
+      }
+      const treeData = (await treeRes.json()) as { sha: string };
+
+      const totalChapters = targetNovels.reduce((sum, n) => sum + (n.chapters?.length || 0), 0);
+      const finalMessage =
+        commitMessage ||
+        `chore(sync): đồng bộ ${targetNovels.length} truyện (${totalChapters} chương) lên Mạc Thư Các`;
+
+      const newCommitRes = await fetch(
+        `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/commits`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            message: finalMessage,
+            tree: treeData.sha,
+            parents: [latestCommitSha]
+          })
+        }
+      );
+      if (!newCommitRes.ok) {
+        const errBody = await newCommitRes.json().catch(() => ({}));
+        res.status(400).json({
+          success: false,
+          error: (errBody as { message?: string }).message || `Lỗi tạo Commit (HTTP ${newCommitRes.status}).`
+        });
+        return;
+      }
+      const newCommitData = (await newCommitRes.json()) as { sha: string };
+
+      const updateRefRes = await fetch(
+        `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/refs/heads/${encodeURIComponent(branch)}`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            sha: newCommitData.sha,
+            force: false
+          })
+        }
+      );
+      if (!updateRefRes.ok) {
+        const errBody = await updateRefRes.json().catch(() => ({}));
+        res.status(400).json({
+          success: false,
+          error: (errBody as { message?: string }).message || `Lỗi cập nhật nhánh ${branch} (HTTP ${updateRefRes.status}).`
+        });
+        return;
+      }
+
+      const pushedAt = new Date().toISOString();
+      const commitUrl = `https://github.com/${owner}/${repo}/commit/${newCommitData.sha}`;
+
+      res.json({
+        success: true,
+        commitSha: newCommitData.sha,
+        commitUrl,
+        pushedAt,
+        filesCount: treeItems.length
+      });
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        error: err instanceof Error ? err.message : 'Lỗi kết nối GitHub API.'
+      });
+    }
+  });
+
   // Server-side scheduled chapter crawler & auto-release every 35 seconds when readers are connected
   let roundRobinIndex = 0;
   setInterval(async () => {
@@ -1942,6 +2372,7 @@ async function startServer() {
     roundRobinIndex++;
 
     const newChapter = await syncNovelFromSourceUrl(targetNovel);
+    saveNovelsToLocalDisk(novelsState);
 
     const event: RealtimeUpdateEvent = {
       id: `evt-${newChapter.id}`,

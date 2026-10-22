@@ -8,10 +8,25 @@ import {
   Globe,
   RefreshCw,
   CheckCircle2,
-  ImagePlus
+  ImagePlus,
+  GitBranch,
+  UploadCloud,
+  DownloadCloud,
+  ExternalLink,
+  KeyRound
 } from 'lucide-react';
 import { Novel } from '../types';
 import { BookCoverArtwork, compressBookCoverFile } from './BookCoverArtwork';
+import {
+  GitHubSyncConfig,
+  GitHubPushResult,
+  loadLocalGitHubConfig,
+  saveLocalGitHubConfig,
+  parseGitHubOwnerAndRepo,
+  extractUrlClientSide
+} from '../utils/githubSyncClient';
+
+export type PublishModalMode = 'url' | 'novel' | 'chapter' | 'github';
 
 export interface CreateNovelPayload {
   title: string;
@@ -37,7 +52,7 @@ export interface ImportUrlPayload {
 
 interface PublishChapterModalProps {
   isOpen: boolean;
-  initialMode?: 'url' | 'novel' | 'chapter';
+  initialMode?: PublishModalMode;
   onClose: () => void;
   novels: Novel[];
   selectedNovelId?: string;
@@ -45,6 +60,8 @@ interface PublishChapterModalProps {
   onQuickAutoRelease: (novelId?: string) => Promise<void>;
   onCreateNovel: (payload: CreateNovelPayload) => Promise<Novel | void>;
   onImportUrlNovel: (payload: ImportUrlPayload) => Promise<Novel | void>;
+  onPushToGitHub?: (configOverride?: Partial<GitHubSyncConfig>, commitMessage?: string) => Promise<GitHubPushResult>;
+  onPullFromGitHub?: (configOverride?: Partial<GitHubSyncConfig>) => Promise<number>;
 }
 
 const COVER_OPTIONS: { id: Novel['coverStyle']; label: string }[] = [
@@ -67,9 +84,11 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
   onPublish,
   onQuickAutoRelease,
   onCreateNovel,
-  onImportUrlNovel
+  onImportUrlNovel,
+  onPushToGitHub,
+  onPullFromGitHub
 }) => {
-  const [mode, setMode] = useState<'url' | 'novel' | 'chapter'>(initialMode);
+  const [mode, setMode] = useState<PublishModalMode>(initialMode);
 
   // URL Import state
   const [sourceUrl, setSourceUrl] = useState('');
@@ -103,6 +122,13 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
   const [chapterTitle, setChapterTitle] = useState('');
   const [chapterContent, setChapterContent] = useState('');
 
+  // GitHub Sync state
+  const [ghConfig, setGhConfig] = useState<GitHubSyncConfig>(() => loadLocalGitHubConfig());
+  const [ghCommitMsg, setGhCommitMsg] = useState('');
+  const [ghPushing, setGhPushing] = useState(false);
+  const [ghPulling, setGhPulling] = useState(false);
+  const [ghSuccessBanner, setGhSuccessBanner] = useState<string | null>(null);
+
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -110,6 +136,8 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
     if (isOpen) {
       setMode(initialMode);
       setErrorMsg('');
+      setGhSuccessBanner(null);
+      setGhConfig(loadLocalGitHubConfig());
     }
   }, [isOpen, initialMode]);
 
@@ -123,6 +151,13 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
         ...targetNovel.chapters.map((c) => Number(c.number) || 0)
       ) + 1
     : 1;
+
+  const updateGhConfigField = (partial: Partial<GitHubSyncConfig>) => {
+    setGhConfig((prev) => {
+      const next = saveLocalGitHubConfig({ ...prev, ...partial });
+      return next;
+    });
+  };
 
   const handleSelectUrlCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -159,16 +194,37 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
     setAnalyzingUrl(true);
     setErrorMsg('');
     try {
-      const res = await fetch('/api/novels/preview-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlToScan })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Không thể phân tích đường dẫn này.');
-        return;
+      let data: {
+        url?: string;
+        title?: string;
+        author?: string;
+        genre?: string;
+        synopsis?: string;
+        coverImageUrl?: string;
+        chapterLinks?: { title: string; url: string; number?: number }[];
+        nextChapterUrl?: string;
+        firstChapterUrl?: string;
+        paragraphs?: string[];
+        error?: string;
+      } | null = null;
+
+      try {
+        const res = await fetch('/api/novels/preview-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urlToScan })
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch {
+        // Fallback to client-side extraction when running on static Vercel host
       }
+
+      if (!data) {
+        data = await extractUrlClientSide(urlToScan);
+      }
+
       setSourceUrl(data.url || urlToScan);
       if (data.title) setUrlTitle(data.title);
       if (data.author) setUrlAuthor(data.author);
@@ -185,8 +241,10 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
       setDetectedParagraphCount(
         Array.isArray(data.paragraphs) && data.paragraphs.length > 0 ? data.paragraphs.length : null
       );
-    } catch {
-      setErrorMsg('Lỗi kết nối máy chủ khi phân tích URL.');
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Không thể phân tích đường dẫn URL này.'
+      );
     } finally {
       setAnalyzingUrl(false);
     }
@@ -201,24 +259,40 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
     setScanningChapterUrl(true);
     setErrorMsg('');
     try {
-      const res = await fetch('/api/novels/preview-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlToScan })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Không thể bóc tách nội dung chương từ URL này.');
-        return;
+      let data: {
+        chapterTitle?: string;
+        title?: string;
+        paragraphs?: string[];
+        error?: string;
+      } | null = null;
+
+      try {
+        const res = await fetch('/api/novels/preview-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urlToScan })
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch {
+        // Fallback to client-side extraction on Vercel static hosting
       }
+
+      if (!data) {
+        data = await extractUrlClientSide(urlToScan);
+      }
+
       if (data.chapterTitle || data.title) {
-        setChapterTitle(data.chapterTitle || data.title);
+        setChapterTitle(data.chapterTitle || data.title || '');
       }
       if (Array.isArray(data.paragraphs) && data.paragraphs.length > 0) {
         setChapterContent(data.paragraphs.join('\n\n'));
       }
-    } catch {
-      setErrorMsg('Lỗi kết nối khi bóc tách nội dung chương.');
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Lỗi kết nối khi bóc tách nội dung chương.'
+      );
     } finally {
       setScanningChapterUrl(false);
     }
@@ -314,10 +388,79 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
     }
   };
 
+  const handleManualGitHubPush = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onPushToGitHub || ghPushing) return;
+    const { owner, repo } = parseGitHubOwnerAndRepo(ghConfig.owner, ghConfig.repo);
+    if (!ghConfig.token.trim() || !owner || !repo) {
+      setErrorMsg('Vui lòng nhập đầy đủ GitHub Token, Owner (Username) và Tên Repository.');
+      return;
+    }
+    const normalizedCfg = saveLocalGitHubConfig({
+      ...ghConfig,
+      owner,
+      repo,
+      branch: (ghConfig.branch || 'main').trim() || 'main'
+    });
+    setGhConfig(normalizedCfg);
+    setGhPushing(true);
+    setErrorMsg('');
+    setGhSuccessBanner(null);
+
+    try {
+      const result = await onPushToGitHub(normalizedCfg, ghCommitMsg.trim() || undefined);
+      if (result.success) {
+        setGhConfig(loadLocalGitHubConfig());
+        setGhCommitMsg('');
+        setGhSuccessBanner(
+          `Đã đồng bộ thành công ${novels.length} truyện (${result.filesCount || 1} tệp trong data/ & novels/) lên nhánh ${normalizedCfg.branch}! Vercel sẽ tự động cập nhật.`
+        );
+      } else {
+        setErrorMsg(result.error || 'Không thể đẩy dữ liệu lên GitHub.');
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi kết nối GitHub.');
+    } finally {
+      setGhPushing(false);
+    }
+  };
+
+  const handleManualGitHubPull = async () => {
+    if (!onPullFromGitHub || ghPulling) return;
+    const { owner, repo } = parseGitHubOwnerAndRepo(ghConfig.owner, ghConfig.repo);
+    if (!owner || !repo) {
+      setErrorMsg('Vui lòng nhập Owner (Username) và Tên Repository trước khi tải.');
+      return;
+    }
+    const normalizedCfg = saveLocalGitHubConfig({
+      ...ghConfig,
+      owner,
+      repo,
+      branch: (ghConfig.branch || 'main').trim() || 'main'
+    });
+    setGhConfig(normalizedCfg);
+    setGhPulling(true);
+    setErrorMsg('');
+    setGhSuccessBanner(null);
+
+    try {
+      const count = await onPullFromGitHub(normalizedCfg);
+      if (count > 0) {
+        setGhSuccessBanner(`Đã nạp thành công ${count} truyện từ kho GitHub (${owner}/${repo})!`);
+      } else {
+        setErrorMsg('Chưa tìm thấy dữ liệu truyện trong data/synced-novels.json trên nhánh này.');
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tải dữ liệu từ GitHub.');
+    } finally {
+      setGhPulling(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
       <div className="w-full max-w-xl max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-[#FBF9F5] dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-xl overflow-hidden">
-        {/* Header with 3-Tab Mode Switcher */}
+        {/* Header with 4-Tab Mode Switcher */}
         <div className="px-5 pt-4 pb-3 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 p-1 bg-stone-200/70 dark:bg-stone-950 rounded-xl overflow-x-auto">
             <button
@@ -366,6 +509,23 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
             >
               <FilePlus className="w-3.5 h-3.5" />
               <span>Đăng Chương</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode('github');
+                setErrorMsg('');
+                setGhConfig(loadLocalGitHubConfig());
+              }}
+              className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                mode === 'github'
+                  ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+              }`}
+            >
+              <GitBranch className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+              <span>Đồng Bộ GitHub</span>
             </button>
           </div>
 
@@ -882,6 +1042,199 @@ export const PublishChapterModal: React.FC<PublishChapterModalProps> = ({
               </div>
             </form>
             )
+          )}
+
+          {mode === 'github' && (
+            <form onSubmit={handleManualGitHubPush} className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-amber-900/10 dark:bg-amber-500/10 border border-amber-800/25 dark:border-amber-500/25 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                    <GitBranch className="w-4 h-4 text-amber-800 dark:text-amber-400 shrink-0" />
+                    <span>Đồng Bộ Truyện & Chương Lên GitHub (Hỗ Trợ Web Online Vercel)</span>
+                  </p>
+                  <span className="text-[11px] font-mono-num px-2 py-0.5 rounded bg-amber-800/15 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300 font-semibold shrink-0">
+                    {novels.length} truyện · {novels.reduce((s, n) => s + (n.chapters?.length || 0), 0)} chương
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed">
+                  Khi đẩy lên GitHub, hệ thống tự động ghi trực tiếp vào <code className="font-mono-num px-1 py-0.5 rounded bg-stone-200/80 dark:bg-stone-800">data/synced-novels.json</code> và thư mục <code className="font-mono-num px-1 py-0.5 rounded bg-stone-200/80 dark:bg-stone-800">novels/&lt;slug&gt;/chapters/</code> trên repo của bạn để Vercel tự động build & hiển thị cho mọi độc giả.
+                </p>
+              </div>
+
+              {ghSuccessBanner && (
+                <div className="px-3.5 py-2.5 rounded-xl bg-emerald-900/10 dark:bg-emerald-500/15 border border-emerald-700/30 flex items-start gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <p>{ghSuccessBanner}</p>
+                    {ghConfig.lastCommitUrl && (
+                      <a
+                        href={ghConfig.lastCommitUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
+                      >
+                        <span>Xem Commit trên GitHub ({ghConfig.lastCommitSha?.slice(0, 7)})</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 dark:text-stone-300 mb-1">
+                    GitHub Owner / Username <span className="text-amber-700">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={ghConfig.owner}
+                    onChange={(e) => updateGhConfigField({ owner: e.target.value })}
+                    placeholder="VD: ten-tai-khoan"
+                    className="w-full h-9 px-3 rounded-lg bg-white dark:bg-stone-950 border border-stone-300 dark:border-stone-800 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-amber-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 dark:text-stone-300 mb-1">
+                    Tên Repository (hoặc URL) <span className="text-amber-700">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={ghConfig.repo}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val.includes('github.com/')) {
+                        const parsed = parseGitHubOwnerAndRepo(ghConfig.owner, val);
+                        updateGhConfigField({ owner: parsed.owner, repo: parsed.repo });
+                      } else {
+                        updateGhConfigField({ repo: val });
+                      }
+                    }}
+                    placeholder="VD: mac-thu-cac"
+                    className="w-full h-9 px-3 rounded-lg bg-white dark:bg-stone-950 border border-stone-300 dark:border-stone-800 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-amber-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 dark:text-stone-300 mb-1">
+                    Nhánh (Branch)
+                  </label>
+                  <input
+                    type="text"
+                    value={ghConfig.branch}
+                    onChange={(e) => updateGhConfigField({ branch: e.target.value })}
+                    placeholder="main"
+                    className="w-full h-9 px-3 rounded-lg bg-white dark:bg-stone-950 border border-stone-300 dark:border-stone-800 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-amber-700 font-mono-num"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  GitHub Personal Access Token (Quyền <code className="font-mono-num">repo</code> hoặc <code className="font-mono-num">contents:write</code>) <span className="text-amber-700">*</span>
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="password"
+                    required
+                    value={ghConfig.token}
+                    onChange={(e) => updateGhConfigField({ token: e.target.value })}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full h-9 pl-8 pr-3 rounded-lg bg-white dark:bg-stone-950 border border-stone-300 dark:border-stone-800 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-amber-700 font-mono-num"
+                  />
+                </div>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                  Token được lưu cục bộ trên trình duyệt của bạn để tự động commit trực tiếp lên GitHub kể cả khi chạy trên Vercel.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  Nội dung Commit (Tùy chọn)
+                </label>
+                <input
+                  type="text"
+                  value={ghCommitMsg}
+                  onChange={(e) => setGhCommitMsg(e.target.value)}
+                  placeholder={`chore(sync): đồng bộ ${novels.length} truyện lên GitHub`}
+                  className="w-full h-9 px-3 rounded-lg bg-white dark:bg-stone-950 border border-stone-300 dark:border-stone-800 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-amber-700"
+                />
+              </div>
+
+              {/* Auto-Push Toggle */}
+              <div className="p-3.5 rounded-xl bg-stone-200/50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+                    Tự động đồng bộ lên GitHub mỗi khi thêm truyện hoặc chương mới
+                  </p>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    Mỗi khi bạn nhập URL, tạo truyện mới hoặc đăng chương mới, web sẽ tự động commit lên GitHub
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateGhConfigField({ autoPush: !ghConfig.autoPush })}
+                  className={`min-h-[32px] px-3 rounded-lg text-xs font-medium transition-colors shrink-0 cursor-pointer ${
+                    ghConfig.autoPush
+                      ? 'bg-emerald-700 dark:bg-emerald-600 text-white'
+                      : 'bg-stone-300 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                  }`}
+                >
+                  {ghConfig.autoPush ? 'Đang bật' : 'Tắt'}
+                </button>
+              </div>
+
+              {ghConfig.lastPushAt && (
+                <div className="px-3.5 py-2 rounded-xl bg-stone-200/40 dark:bg-stone-950/70 border border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2 text-[11px] text-stone-600 dark:text-stone-400">
+                  <span>
+                    Lần đồng bộ gần nhất:{' '}
+                    <strong className="font-mono-num text-stone-800 dark:text-stone-200">
+                      {new Date(ghConfig.lastPushAt).toLocaleString('vi-VN')}
+                    </strong>
+                  </span>
+                  {ghConfig.lastCommitUrl && (
+                    <a
+                      href={ghConfig.lastCommitUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-amber-800 dark:text-amber-400 font-semibold hover:underline flex items-center gap-1"
+                    >
+                      <span>Commit {ghConfig.lastCommitSha?.slice(0, 7)}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                <button
+                  type="button"
+                  disabled={ghPulling || ghPushing}
+                  onClick={handleManualGitHubPull}
+                  className="w-full sm:w-auto min-h-[40px] px-4 py-2 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <DownloadCloud className={`w-4 h-4 ${ghPulling ? 'animate-bounce' : ''}`} />
+                  <span>{ghPulling ? 'Đang tải từ GitHub...' : 'Tải Dữ Liệu Từ GitHub'}</span>
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={ghPushing || ghPulling}
+                  className="w-full sm:flex-1 min-h-[40px] px-5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <UploadCloud className={`w-4 h-4 ${ghPushing ? 'animate-bounce' : ''}`} />
+                  <span>
+                    {ghPushing
+                      ? 'Đang đồng bộ lên GitHub...'
+                      : `Đẩy ${novels.length} Truyện Lên GitHub Ngay`}
+                  </span>
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </div>
