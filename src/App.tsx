@@ -25,7 +25,8 @@ import {
   ImagePlus,
   Palette,
   GitBranch,
-  PlusCircle
+  PlusCircle,
+  Trash2
 } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -64,7 +65,6 @@ import {
   AVAILABLE_TITLES,
   getTitleTheme,
   getTitleForLevel,
-  hasLiquidGlassEffect,
   getRequiredExpForLevel,
   getReadingExpRule
 } from './components/UserProfileModal';
@@ -156,7 +156,6 @@ export default function App() {
 
   // Top-right Avatar Dropdown & Profile Modal state
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState<boolean>(false);
-  const [avatarBurstKey, setAvatarBurstKey] = useState<number>(0);
   const [activeProfileSection, setActiveProfileSection] = useState<ProfileSectionType>(null);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -190,7 +189,6 @@ export default function App() {
   });
 
   const activeTitleTheme = getTitleTheme(userProfile.equippedTitle, userProfile.level);
-  const hasLiquidGlass = hasLiquidGlassEffect(userProfile.level);
   const isAdmin = isAdminUser(currentUser);
 
   // Active reading time counter (in seconds) for automatic EXP progression
@@ -203,14 +201,41 @@ export default function App() {
     }
   });
   const [expGainToast, setExpGainToast] = useState<string | null>(null);
+  const [levelUpNotice, setLevelUpNotice] = useState<{
+    level: number;
+    titleName: string;
+    rarity: string;
+  } | null>(null);
+  const levelUpTimerRef = useRef<number | null>(null);
+
+  const triggerLevelUpNotice = (newLevel: number, customTitle?: string) => {
+    const theme = getTitleTheme(customTitle, newLevel);
+    setLevelUpNotice({
+      level: newLevel,
+      titleName: theme.name,
+      rarity: theme.rarity
+    });
+    if (levelUpTimerRef.current) {
+      window.clearTimeout(levelUpTimerRef.current);
+    }
+    levelUpTimerRef.current = window.setTimeout(() => {
+      setLevelUpNotice(null);
+      levelUpTimerRef.current = null;
+    }, 5000);
+  };
 
   // Navigation & Drawer state
-  const [activeTab, setActiveTab] = useState<'discover' | 'updates' | 'library'>('discover');
+  const [activeTab, setActiveTab] = useState<'discover' | 'updates' | 'library' | 'history'>('discover');
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isLogOpen, setIsLogOpen] = useState<boolean>(false);
   const [selectedGenre, setSelectedGenre] = useState<string>('Tất cả');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [readingState, setReadingState] = useState<{ novelId: string; chapterNumber: number } | null>(null);
+  const [openingBookAnim, setOpeningBookAnim] = useState<{
+    novel: Novel;
+    chapterNumber: number;
+  } | null>(null);
+  const openingBookTimerRef = useRef<number | null>(null);
   const [modalState, setModalState] = useState<{ isOpen: boolean; mode: PublishModalMode }>({
     isOpen: false,
     mode: 'url'
@@ -239,7 +264,10 @@ export default function App() {
           autoNextChapter: true,
           ttsRate: 1.0,
           ...parsed,
-          ttsVoiceId: parsed.ttsVoiceId || 'quynh-anh-4-0'
+          ttsVoiceId:
+            parsed.ttsVoiceId === 'ngoc-huyen-ha-noi' || parsed.ttsVoiceId === 'hoai-my-neural'
+              ? parsed.ttsVoiceId
+              : 'quynh-anh-4-0'
         };
       }
     } catch {
@@ -300,6 +328,9 @@ export default function App() {
   const updateUserProfile = (partial: Partial<UserProfileData>) => {
     setUserProfile((prev) => {
       const next = { ...prev, ...partial };
+      if (typeof partial.level === 'number' && partial.level > (prev.level || 1)) {
+        triggerLevelUpNotice(partial.level, next.equippedTitle);
+      }
       try {
         localStorage.setItem(STORAGE_PROFILE_KEY, JSON.stringify(next));
       } catch {
@@ -476,9 +507,21 @@ export default function App() {
   };
 
   const openReader = (novelId: string, chapterNumber?: number) => {
-    const targetNovel = novels.find((n) => n.id === novelId);
+    const targetNovel = novels.find((n) => n.id === novelId) || novels[0];
     const savedChap = progressMap[novelId]?.chapterNumber || 1;
     const targetChapter = chapterNumber || savedChap;
+
+    if (!readingState && targetNovel) {
+      if (openingBookTimerRef.current) {
+        window.clearTimeout(openingBookTimerRef.current);
+      }
+      setOpeningBookAnim({ novel: targetNovel, chapterNumber: targetChapter });
+      openingBookTimerRef.current = window.setTimeout(() => {
+        setOpeningBookAnim(null);
+        openingBookTimerRef.current = null;
+      }, 720);
+    }
+
     setReadingState({ novelId, chapterNumber: targetChapter });
 
     const updatedProgress: Record<string, ReadingProgress> = {
@@ -503,6 +546,28 @@ export default function App() {
       bookmarkedIds.includes(novelId),
       targetNovel
     ).catch(() => {});
+  };
+
+  const handleRemoveFromHistory = (novelId: string) => {
+    setProgressMap((prev) => {
+      const next = { ...prev };
+      delete next[novelId];
+      try {
+        localStorage.setItem(STORAGE_PROGRESS_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const handleClearReadingHistory = () => {
+    setProgressMap({});
+    try {
+      localStorage.removeItem(STORAGE_PROGRESS_KEY);
+    } catch {
+      // ignore
+    }
   };
 
   // Real-time Reading EXP Timer:
@@ -569,6 +634,10 @@ export default function App() {
               // ignore
             }
             syncUserProfileToFirestore(updated, true).catch(() => {});
+
+            if (leveledUp) {
+              triggerLevelUpNotice(lvl, equippedTitle);
+            }
 
             const toastMsg = leveledUp
               ? `Đột phá cấp độ Lv ${lvl}! (+${activeRule.expGain} EXP sau ${activeRule.requiredMinutes} phút đọc)`
@@ -1237,10 +1306,83 @@ export default function App() {
             onFetchNextChapter={isAdmin ? () => handleSyncSingleNovelUrl(activeNovel.id) : undefined}
             isFetchingNextChapter={syncingNovelId === activeNovel.id}
           />
+          {openingBookAnim && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 backdrop-blur-xs pointer-events-none">
+              <div className="relative w-52 sm:w-60 aspect-[3/4.2] animate-book-stage">
+                {/* Inside Right Page of the Opening Book */}
+                <div className="absolute inset-0 rounded-r-xl rounded-l-sm bg-[#FBF9F5] dark:bg-[#1C1917] border border-amber-900/30 dark:border-stone-700 shadow-2xl p-5 flex flex-col justify-between overflow-hidden">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-mono-num uppercase tracking-widest text-amber-800 dark:text-amber-400">
+                      Mạc Thư Các · Chương {openingBookAnim.chapterNumber}
+                    </span>
+                    <h4 className="font-display text-lg font-bold text-stone-900 dark:text-stone-100 line-clamp-2 leading-snug">
+                      {openingBookAnim.novel.title}
+                    </h4>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                      {openingBookAnim.novel.author}
+                    </p>
+                  </div>
+                  <div className="space-y-2 opacity-60">
+                    <div className="h-1.5 w-full rounded bg-stone-300 dark:bg-stone-700" />
+                    <div className="h-1.5 w-11/12 rounded bg-stone-300 dark:bg-stone-700" />
+                    <div className="h-1.5 w-4/5 rounded bg-stone-300 dark:bg-stone-700" />
+                    <div className="h-1.5 w-full rounded bg-stone-300 dark:bg-stone-700" />
+                    <div className="h-1.5 w-3/4 rounded bg-stone-300 dark:bg-stone-700" />
+                  </div>
+                  <div className="text-right text-[10px] font-mono-num text-stone-400">
+                    Trang 1
+                  </div>
+                </div>
+
+                {/* Book Spine Shadow */}
+                <div className="absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/45 to-transparent z-10 pointer-events-none rounded-l-sm" />
+
+                {/* 3D Flipping Front Cover */}
+                <div className="absolute inset-0 rounded-r-xl rounded-l-sm overflow-hidden z-20 animate-book-cover-flip">
+                  <BookCoverArtwork
+                    styleType={openingBookAnim.novel.coverStyle}
+                    coverImageUrl={openingBookAnim.novel.coverImageUrl}
+                    title={openingBookAnim.novel.title}
+                    author={openingBookAnim.novel.author}
+                    genre={openingBookAnim.novel.genre}
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
           {expGainToast && (
             <div className="fixed bottom-20 right-4 z-50 px-4 py-2.5 rounded-xl bg-[#181824]/95 text-white text-xs font-semibold border border-purple-500/40 shadow-2xl flex items-center gap-2 pointer-events-none">
               <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
               <span>{expGainToast}</span>
+            </div>
+          )}
+          {levelUpNotice && (
+            <div className="fixed bottom-16 left-4 z-[60] w-64 sm:w-72 px-3 py-2.5 rounded-md bg-[#181824] text-stone-100 border border-amber-500/50 border-l-4 border-l-amber-400 shadow-xl flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded bg-amber-500/15 border border-amber-400/40 flex flex-col items-center justify-center shrink-0">
+                  <span className="text-[9px] font-bold uppercase text-amber-300 leading-none">LV</span>
+                  <span className="text-xs font-mono-num font-extrabold text-amber-400 leading-tight">
+                    {levelUpNotice.level}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 truncate">
+                    Lên cấp mới!
+                  </p>
+                  <p className="text-xs font-semibold text-white truncate">
+                    {levelUpNotice.titleName} · <span className="text-stone-400">{levelUpNotice.rarity}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLevelUpNotice(null)}
+                className="p-1 rounded text-stone-400 hover:text-white hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
+                aria-label="Đóng thông báo lên cấp"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </>
@@ -1263,6 +1405,16 @@ export default function App() {
       ? featuredNovel.chapters[featuredNovel.chapters.length - 1]
       : null;
   const bookmarkedNovels = novels.filter((n) => bookmarkedIds.includes(n.id));
+  const readingHistoryItems = Object.values(progressMap)
+    .map((progress) => {
+      const novel = novels.find((n) => n.id === progress.novelId);
+      return novel ? { novel, progress } : null;
+    })
+    .filter((item): item is { novel: Novel; progress: ReadingProgress } => item !== null)
+    .sort(
+      (a, b) =>
+        new Date(b.progress.updatedAt).getTime() - new Date(a.progress.updatedAt).getTime()
+    );
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FBF9F5] dark:bg-[#0C0A09] text-stone-900 dark:text-stone-100 pb-12">
@@ -1291,33 +1443,18 @@ export default function App() {
           </a>
         </div>
 
-        {/* Right Zone: User Avatar with Liquid Glass Effect (unlocked at Lv 50+) & Dropdown Menu */}
+        {/* Right Zone: User Avatar & Dropdown Menu */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0" ref={avatarMenuRef}>
           {/* Top-right Avatar Trigger */}
           <div className="relative flex items-center justify-center">
-            {hasLiquidGlass && avatarBurstKey > 0 && (
-              <span
-                key={`ripple-${avatarBurstKey}`}
-                className="liquid-glass-ripple"
-                aria-hidden="true"
-              />
-            )}
             <button
-              key={`orb-${avatarBurstKey}`}
               type="button"
               onClick={() => {
-                if (hasLiquidGlass) setAvatarBurstKey((k) => k + 1);
                 setIsAvatarMenuOpen((prev) => !prev);
               }}
-              className={`w-10 h-10 rounded-full p-[2.5px] overflow-hidden focus:outline-none cursor-pointer transition-all duration-300 ${
-                hasLiquidGlass
-                  ? `liquid-glass-avatar ${
-                      avatarBurstKey > 0 ? 'liquid-glass-avatar-active liquid-glass-avatar-burst' : ''
-                    }`
-                  : 'active:scale-95'
-              } ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
+              className={`w-10 h-10 rounded-full p-[2.5px] overflow-hidden focus:outline-none cursor-pointer transition-transform active:scale-95 ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
               aria-label="Mở menu tài khoản"
-              title={`${userProfile.nickname} · ${activeTitleTheme.name}${hasLiquidGlass ? ' · Liquid Glass' : ''}`}
+              title={`${userProfile.nickname} · ${activeTitleTheme.name}`}
             >
               <div className="relative w-full h-full rounded-full overflow-hidden bg-stone-900">
                 <img
@@ -1325,33 +1462,23 @@ export default function App() {
                   alt={userProfile.nickname}
                   className="w-full h-full rounded-full object-cover"
                 />
-                {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
               </div>
             </button>
 
-            {/* Dropdown Menu (Liquid Glass Refraction at Lv 50+) + Google Sign In / Sign Up */}
+            {/* Dropdown Menu + Google Sign In / Sign Up */}
             {isAvatarMenuOpen && (
               <div
-                className={`absolute right-0 top-full mt-3 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl text-stone-100 overflow-hidden z-50 select-none ${
-                  hasLiquidGlass
-                    ? 'liquid-glass-popover'
-                    : 'bg-[#191924] border border-white/10 shadow-2xl'
-                }`}
+                className="absolute right-0 top-full mt-3 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl text-stone-100 overflow-hidden z-50 select-none bg-[#191924] border border-white/10 shadow-2xl"
               >
                 {/* User Header Info */}
                 <div className="p-4 sm:p-5 flex items-center gap-3.5 border-b border-white/15 bg-white/[0.03]">
                   <button
                     type="button"
                     onClick={() => {
-                      if (hasLiquidGlass) setAvatarBurstKey((k) => k + 1);
                       setIsAvatarMenuOpen(false);
                       setActiveProfileSection('profile');
                     }}
-                    className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full p-[3px] shrink-0 overflow-hidden cursor-pointer ${
-                      hasLiquidGlass
-                        ? 'liquid-glass-avatar liquid-glass-avatar-burst'
-                        : 'transition-transform active:scale-95'
-                    } ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
+                    className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full p-[3px] shrink-0 overflow-hidden cursor-pointer transition-transform active:scale-95 ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
                     title="Nhấn để chỉnh sửa Hồ sơ & Avatar"
                   >
                     <div className="relative w-full h-full rounded-full overflow-hidden bg-[#191924]">
@@ -1360,7 +1487,6 @@ export default function App() {
                         alt={userProfile.nickname}
                         className="w-full h-full rounded-full object-cover"
                       />
-                      {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
                     </div>
                   </button>
                   <div className="min-w-0 flex-1 overflow-hidden space-y-1">
@@ -1401,7 +1527,7 @@ export default function App() {
                         setIsAvatarMenuOpen(false);
                         setActiveProfileSection('admin');
                       }}
-                      className="w-full px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2 text-sm font-semibold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 transition-all cursor-pointer mb-1 liquid-glass-menu-item"
+                      className="w-full px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2 text-sm font-semibold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 transition-all cursor-pointer mb-1"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Crown className="w-5 h-5 text-amber-400 shrink-0" />
@@ -1419,7 +1545,7 @@ export default function App() {
                       setIsAvatarMenuOpen(false);
                       setActiveProfileSection('account');
                     }}
-                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:text-white cursor-pointer liquid-glass-menu-item"
+                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                   >
                     <UserCircle className="w-5 h-5 text-stone-300 shrink-0" />
                     <span>Tài khoản của tôi</span>
@@ -1431,7 +1557,7 @@ export default function App() {
                       setIsAvatarMenuOpen(false);
                       setActiveProfileSection('profile');
                     }}
-                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:text-white cursor-pointer liquid-glass-menu-item"
+                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                   >
                     <UserIcon className="w-5 h-5 text-stone-300 shrink-0" />
                     <span>Hồ sơ của tôi</span>
@@ -1443,7 +1569,7 @@ export default function App() {
                       setIsAvatarMenuOpen(false);
                       setActiveProfileSection('settings');
                     }}
-                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:text-white cursor-pointer liquid-glass-menu-item"
+                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                   >
                     <Settings className="w-5 h-5 text-stone-300 shrink-0" />
                     <span>Cài đặt tài khoản</span>
@@ -1455,7 +1581,7 @@ export default function App() {
                       setIsAvatarMenuOpen(false);
                       setActiveTab('library');
                     }}
-                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center justify-between text-sm font-medium text-stone-100 hover:text-white cursor-pointer liquid-glass-menu-item"
+                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center justify-between text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3.5">
                       <Bookmark className="w-5 h-5 text-stone-300 shrink-0" />
@@ -1472,7 +1598,7 @@ export default function App() {
                       setIsAvatarMenuOpen(false);
                       setActiveProfileSection('title');
                     }}
-                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:text-white cursor-pointer liquid-glass-menu-item"
+                    className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                   >
                     <Star className="w-5 h-5 text-stone-300 shrink-0" />
                     <span>Danh hiệu</span>
@@ -1488,7 +1614,7 @@ export default function App() {
                         setIsAvatarMenuOpen(false);
                         signOutUser();
                       }}
-                      className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-semibold text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer liquid-glass-menu-item"
+                      className="w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-sm font-semibold text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
                     >
                       <LogOut className="w-5 h-5 shrink-0" />
                       <span>Đăng xuất</span>
@@ -1607,6 +1733,27 @@ export default function App() {
 
                 <button
                   type="button"
+                  onClick={() => {
+                    setActiveTab('history');
+                    setIsMenuOpen(false);
+                  }}
+                  className={`w-full min-h-[44px] px-3.5 rounded-xl flex items-center justify-between text-xs font-medium transition-colors cursor-pointer ${
+                    activeTab === 'history'
+                      ? 'bg-amber-900/10 dark:bg-amber-500/15 text-amber-900 dark:text-amber-300 font-semibold'
+                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-4 h-4 shrink-0 text-amber-800 dark:text-amber-400" />
+                    <span>Lịch sử đọc</span>
+                  </div>
+                  <span className="font-mono-num text-[11px] opacity-75">
+                    {readingHistoryItems.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={toggleDarkMode}
                   className="w-full min-h-[44px] px-3.5 rounded-xl flex items-center justify-between text-xs font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
@@ -1623,6 +1770,81 @@ export default function App() {
                   </span>
                 </button>
               </nav>
+
+              {/* Quick Reading History List inside Hamburger Menu */}
+              <div className="pt-4 border-t border-stone-200 dark:border-stone-800 space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-800 dark:text-amber-400" />
+                    Đọc gần đây
+                  </span>
+                  {readingHistoryItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('history');
+                        setIsMenuOpen(false);
+                      }}
+                      className="text-[11px] font-medium text-amber-800 dark:text-amber-400 hover:underline cursor-pointer"
+                    >
+                      Xem tất cả ({readingHistoryItems.length})
+                    </button>
+                  )}
+                </div>
+
+                {readingHistoryItems.length === 0 ? (
+                  <p className="px-1 text-[11px] text-stone-400 dark:text-stone-500 italic">
+                    Chưa có lịch sử đọc truyện nào.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {readingHistoryItems.slice(0, 5).map(({ novel, progress }) => (
+                      <div
+                        key={novel.id}
+                        className="group flex items-center justify-between gap-2 p-2 rounded-xl bg-stone-200/40 dark:bg-stone-800/50 hover:bg-amber-900/10 dark:hover:bg-amber-500/15 transition-colors"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            openReader(novel.id, progress.chapterNumber);
+                          }}
+                          className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
+                        >
+                          <div className="w-8 aspect-[3/4] shrink-0 rounded overflow-hidden">
+                            <BookCoverArtwork
+                              styleType={novel.coverStyle}
+                              coverImageUrl={novel.coverImageUrl}
+                              title={novel.title}
+                              author={novel.author}
+                              compact
+                              className="w-full h-full"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate">
+                              {novel.title}
+                            </p>
+                            <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                              Chương {progress.chapterNumber}/{novel.chapters.length} ·{' '}
+                              {formatRelativeTime(progress.updatedAt)}
+                            </p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromHistory(novel.id)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-rose-500 hover:bg-stone-300/50 dark:hover:bg-stone-700/60 transition-colors shrink-0 cursor-pointer"
+                          title="Xoá khỏi lịch sử"
+                          aria-label="Xoá khỏi lịch sử"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="pt-4 border-t border-stone-200 dark:border-stone-800 space-y-2 text-[11px] text-stone-500 dark:text-stone-400">
@@ -1634,7 +1856,7 @@ export default function App() {
                 />
                 <span>{wsConnected ? `Trực tuyến · ${activeReaders} độc giả` : 'Đang kết nối...'}</span>
               </div>
-              <p>Tự động cuộn · Giọng đọc Nữ · Đọc tự động</p>
+              <p>Giọng đọc Nữ · Đọc tự động</p>
             </div>
           </aside>
         </div>
@@ -2299,12 +2521,146 @@ export default function App() {
             )}
           </section>
         )}
+
+        {/* TAB 4: READING HISTORY (LỊCH SỬ ĐỌC) */}
+        {activeTab === 'history' && (
+          <section className="space-y-6">
+            <div className="border-b border-stone-200 dark:border-stone-800 pb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100">
+                  Lịch Sử Đọc Truyện
+                </h1>
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                  Danh sách các tác phẩm và chương bạn đã đọc gần đây
+                </p>
+              </div>
+              {readingHistoryItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearReadingHistory}
+                  className="min-h-[36px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-800 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xoá toàn bộ lịch sử</span>
+                </button>
+              )}
+            </div>
+
+            {readingHistoryItems.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <p className="text-sm text-stone-500">Bạn chưa có lịch sử đọc truyện nào.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('discover')}
+                  className="px-4 py-2 rounded-lg bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 text-xs font-medium cursor-pointer"
+                >
+                  Khám phá truyện ngay
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {readingHistoryItems.map(({ novel, progress }) => {
+                  const readChapter =
+                    novel.chapters.find((c) => c.number === progress.chapterNumber) ||
+                    novel.chapters[novel.chapters.length - 1];
+                  return (
+                    <div
+                      key={novel.id}
+                      className="flex items-center justify-between gap-4 pb-5 border-b border-stone-200/70 dark:border-stone-800/80"
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div
+                          onClick={() => openReader(novel.id, progress.chapterNumber)}
+                          className="w-16 aspect-[3/4] shrink-0 cursor-pointer group"
+                        >
+                          <BookCoverArtwork
+                            styleType={novel.coverStyle}
+                            coverImageUrl={novel.coverImageUrl}
+                            title={novel.title}
+                            author={novel.author}
+                            compact
+                            className="w-full h-full rounded-md"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <h3
+                            onClick={() => openReader(novel.id, progress.chapterNumber)}
+                            className="font-display text-lg font-bold text-stone-900 dark:text-stone-100 truncate hover:text-amber-800 dark:hover:text-amber-400 cursor-pointer"
+                          >
+                            {novel.title}
+                          </h3>
+                          <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 truncate">
+                            Đang đọc: Chương {progress.chapterNumber} / {novel.chapters.length}
+                            {readChapter?.title ? ` · ${readChapter.title}` : ''}
+                          </p>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-400 mt-0.5 flex items-center gap-1">
+                            <Clock className="w-3 h-3 shrink-0" />
+                            <span>Đọc lần cuối: {formatRelativeTime(progress.updatedAt)}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromHistory(novel.id)}
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-stone-300 dark:border-stone-800 text-stone-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-stone-200/50 dark:hover:bg-stone-800 transition-colors flex items-center justify-center cursor-pointer"
+                          title="Xoá khỏi lịch sử đọc"
+                          aria-label="Xoá khỏi lịch sử đọc"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openReader(novel.id, progress.chapterNumber)}
+                          className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-950 text-xs font-medium shrink-0 cursor-pointer"
+                        >
+                          Đọc tiếp
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
       {githubSyncToast && (
         <div className="fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 rounded-xl bg-stone-900/95 dark:bg-stone-100/95 text-white dark:text-stone-950 text-xs font-medium shadow-xl border border-white/10 flex items-center gap-2.5">
           <Sparkles className="w-4 h-4 text-amber-400 dark:text-amber-600 shrink-0" />
           <span className="leading-snug">{githubSyncToast}</span>
+        </div>
+      )}
+
+      {/* Small Rectangular Bottom-Left Level-Up Notification Box */}
+      {levelUpNotice && (
+        <div className="fixed bottom-4 left-4 z-[60] w-64 sm:w-72 px-3 py-2.5 rounded-md bg-[#181824] text-stone-100 border border-amber-500/50 border-l-4 border-l-amber-400 shadow-xl flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded bg-amber-500/15 border border-amber-400/40 flex flex-col items-center justify-center shrink-0">
+              <span className="text-[9px] font-bold uppercase text-amber-300 leading-none">LV</span>
+              <span className="text-xs font-mono-num font-extrabold text-amber-400 leading-tight">
+                {levelUpNotice.level}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 truncate">
+                Lên cấp mới!
+              </p>
+              <p className="text-xs font-semibold text-white truncate">
+                {levelUpNotice.titleName} · <span className="text-stone-400">{levelUpNotice.rarity}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLevelUpNotice(null)}
+            className="p-1 rounded text-stone-400 hover:text-white hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
+            aria-label="Đóng thông báo lên cấp"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 

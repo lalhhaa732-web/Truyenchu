@@ -1597,7 +1597,10 @@ async function startServer() {
   });
 
   // In-memory cache for synthesized TTS audio to eliminate network delay & stutter
-  const ttsAudioCache = new Map<string, { buffer: Buffer; mimeType: string }>();
+  const ttsAudioCache = new Map<
+    string,
+    { buffer: Buffer; mimeType: string; voiceEngine: 'neural' | 'gemini' | 'fallback' }
+  >();
   const ttsChunkCache = new Map<string, Buffer>();
 
   const geminiClient = process.env.GEMINI_API_KEY
@@ -1612,39 +1615,119 @@ async function startServer() {
     : null;
 
   function normalizeVietnameseTtsText(raw: string): string {
-    return raw
-      .replace(/\[([^\]]+)\]/g, '$1.')
+    if (!raw) return '';
+    let text = raw
+      // Remove decorative scene breaks and markdown/HTML artifacts
+      .replace(/^[*\-=~_•▪►◊+\s]+$/gm, ' ')
+      .replace(/[*#_~^=|\\<>]+/g, ' ')
+      // Remove brackets & quotes without adding comma pauses
+      .replace(/\[([^\]]+)\]/g, ' $1 ')
+      .replace(/【([^】]+)】/g, ' $1 ')
+      .replace(/《([^》]+)》/g, ' $1 ')
+      .replace(/\(([^)]+)\)/g, ' $1 ')
+      // Expand common Vietnamese novel abbreviations so TTS never stutters on shorthand
       .replace(/\bC\.(\d+)\b/gi, 'Chương $1')
-      .replace(/[“”"«»„‟‹›']/g, ' ')
-      .replace(/[—–―-]+/g, ', ')
-      .replace(/\.{2,}|…+/g, '. ')
-      .replace(/([,;:?!.])(?=[^\s])/g, '$1 ')
-      .replace(/[&<>]/g, ' ')
+      .replace(/\bQ\.(\d+)\b/gi, 'Quyển $1')
+      .replace(/\bv\.v\.+/gi, 'vân vân')
+      .replace(/\bko\b/gi, 'không')
+      .replace(/\bđc\b/gi, 'được')
+      // Normalize formatted thousand numbers (e.g., 10.000 -> 10000) so '.' isn't read as a sentence stop
+      .replace(/\b(\d{1,3})\.(\d{3})(?:\.(\d{3}))?\b/g, (_m, a, b, c) =>
+        c ? `${a}${b}${c}` : `${a}${b}`
+      )
+      // Turn dashes, quotes, ellipses, colons, and semicolons into seamless spaces
+      .replace(/(?:^|\n)\s*[-–—―]+\s*/g, ' ')
+      .replace(/(?<=\p{L})[-–](?=\p{L})/gu, ' ')
+      .replace(/[—–―-]+/g, ' ')
+      .replace(/[“”"«»„‟‹›'’‘`]/g, ' ')
+      .replace(/\.{2,}|…+/g, ' ')
+      .replace(/[;:]+/g, ' ')
+      .replace(/[!?]+/g, '.')
+      // Remove commas after short phrases (1-4 words) so the voice flows without frequent stops
+      .replace(/(?:^|(?<=[.,]))\s*([^\s.,]{1,14}(?:\s+[^\s.,]{1,14}){0,3}),\s*/g, ' $1 ')
+      // Soften remaining commas: only keep a light comma if the preceding clause is long (>= 32 chars), otherwise use a seamless space
+      .replace(/,\s*/g, (_match, offset, fullStr) => {
+        const before = fullStr.slice(Math.max(0, offset - 36), offset);
+        return before.includes(',') || before.includes('.') || before.trim().length < 32 ? ' ' : ', ';
+      })
+      // Convert periods (except decimal numbers) into a brief comma micro-breath (or space if the sentence is short)
+      .replace(/\.(?=[^\d]|$)/g, (_match, offset, fullStr) => {
+        const before = fullStr.slice(Math.max(0, offset - 26), offset);
+        return before.includes(',') || before.trim().length < 22 ? ' ' : ', ';
+      })
+      .replace(/,\s*,+/g, ', ')
+      .replace(/\s+,/g, ',')
+      .replace(/,(?=[^\s])/g, ', ')
       .replace(/\s+/g, ' ')
       .trim();
+
+    // Strip leading/trailing punctuation so paragraph start/end has zero dead-air pause
+    text = text.replace(/^[,.;:!?\s]+/, '').replace(/[,.;:!?\s]+$/, '').trim();
+    return text;
   }
 
   function getQuynhAnhProsodyForVoice(voiceId?: string): { pitch: string; rate: string } {
+    // Distinct vocal pitch & cadence for each persona so all 3 voices sound unmistakably different:
+    // - Quỳnh Anh 4.0: bright, youthful, sweet voice (+18Hz, +12% brisk 4.0 flow)
+    // - Ngọc Huyền Hà Nội: warm, deep, calm Hanoi late-night storyteller (-18Hz, -4% expressive pace)
+    // - Hoài My Neural: pure, balanced original vi-VN-HoaiMyNeural (+0Hz, +5% standard pace)
     switch (voiceId) {
+      case 'ngoc-huyen-ha-noi':
+        return { pitch: '-18Hz', rate: '-4%' };
+      case 'hoai-my-neural':
+        return { pitch: '+0Hz', rate: '+5%' };
       case 'quynh-anh-4-0':
-        return { pitch: '+2Hz', rate: '+4%' };
-      case 'nu-review-phim':
-        return { pitch: '+2Hz', rate: '+6%' };
-      case 'nu-kich-tinh':
-        return { pitch: '+1Hz', rate: '+7%' };
-      case 'nu-tien-hiep':
-        return { pitch: '+0Hz', rate: '+2%' };
-      case 'nu-ha-noi':
-        return { pitch: '-1Hz', rate: '+0%' };
-      case 'nu-ngot-ngao':
-        return { pitch: '+3Hz', rate: '-3%' };
       default:
-        return { pitch: '+2Hz', rate: '+4%' };
+        return { pitch: '+18Hz', rate: '+12%' };
     }
   }
 
-  // Primary Engine: Quỳnh Anh 4.0 Neural Vietnamese Female Voice (full-paragraph continuous MP3 stream, zero mid-sentence cuts)
-  async function synthesizeQuynhAnhNeuralMp3(cleanText: string, voiceId?: string): Promise<Buffer> {
+  function pcmToWavBuffer(
+    pcmBuffer: Buffer,
+    sampleRate = 24000,
+    numChannels = 1,
+    bitsPerSample = 16
+  ): Buffer {
+    const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+    const blockAlign = (numChannels * bitsPerSample) / 8;
+    const dataSize = pcmBuffer.length;
+    const header = Buffer.alloc(44);
+
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + dataSize, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16); // PCM chunk size
+    header.writeUInt16LE(1, 20); // AudioFormat 1 = PCM
+    header.writeUInt16LE(numChannels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(dataSize, 40);
+
+    return Buffer.concat([header, pcmBuffer]);
+  }
+
+  // Strip ID3v2 tag header from subsequent MP3 chunks so concatenated fallback buffers play without mid-stream resets
+  function stripMp3Id3Header(buf: Buffer): Buffer {
+    if (buf.length > 10 && buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
+      const size =
+        ((buf[6] & 0x7f) << 21) |
+        ((buf[7] & 0x7f) << 14) |
+        ((buf[8] & 0x7f) << 7) |
+        (buf[9] & 0x7f);
+      const headerEnd = 10 + size;
+      if (headerEnd < buf.length) {
+        return buf.subarray(headerEnd);
+      }
+    }
+    return buf;
+  }
+
+  // Primary Engine: Quỳnh Anh 4.0, Ngọc Huyền Hà Nội & Hoài My Neural Vietnamese Female Voice (full-paragraph continuous MP3 stream)
+  async function synthesizeQuynhAnhNeuralMp3Once(cleanText: string, voiceId?: string): Promise<Buffer> {
     const tts = new MsEdgeTTS();
     let timeoutHandle: NodeJS.Timeout | null = null;
 
@@ -1668,7 +1751,7 @@ async function startServer() {
       })();
 
       const timeoutPromise = new Promise<never>((_resolve, reject) => {
-        timeoutHandle = setTimeout(() => reject(new Error('Neural TTS timeout')), 7500);
+        timeoutHandle = setTimeout(() => reject(new Error('Neural TTS timeout')), 6500);
       });
 
       return await Promise.race([synthesisPromise, timeoutPromise]);
@@ -1682,20 +1765,40 @@ async function startServer() {
     }
   }
 
-  // Secondary Engine: Gemini 3.8 Flash Lite TTS (Kore/Zephyr female voice)
+  async function synthesizeQuynhAnhNeuralMp3(cleanText: string, voiceId?: string): Promise<Buffer> {
+    try {
+      return await synthesizeQuynhAnhNeuralMp3Once(cleanText, voiceId);
+    } catch {
+      // Immediate retry once on transient socket drop to preserve seamless neural voice across paragraphs
+      return await synthesizeQuynhAnhNeuralMp3Once(cleanText, voiceId);
+    }
+  }
+
+  // Secondary Engine: Gemini 2.5 Flash Preview TTS (Kore / Aoede / Zephyr distinct female voices)
   async function synthesizeGeminiFemaleWav(cleanText: string, voiceId?: string): Promise<Buffer> {
     if (!geminiClient) throw new Error('Gemini client unavailable');
     const voiceName =
-      voiceId === 'nu-tien-hiep' || voiceId === 'nu-ngot-ngao' ? 'Zephyr' : 'Kore';
+      voiceId === 'ngoc-huyen-ha-noi'
+        ? 'Aoede'
+        : voiceId === 'hoai-my-neural'
+        ? 'Zephyr'
+        : 'Kore';
+
+    const styleInstruction =
+      voiceId === 'ngoc-huyen-ha-noi'
+        ? 'Đọc bằng giọng nữ Hà Nội trầm ấm, sâu lắng, truyền cảm như phát thanh viên đọc truyện đêm khuya: '
+        : voiceId === 'hoai-my-neural'
+        ? 'Đọc bằng giọng nữ tiếng Việt chuẩn, rõ chữ, nhịp độ cân bằng tự nhiên: '
+        : 'Đọc bằng giọng nữ trẻ trung, âm sắc trong trẻo, tươi sáng, lưu loát: ';
 
     const response = await geminiClient.models.generateContent({
-      model: 'gemini-3.8-flash-lite-tts',
+      model: 'gemini-2.5-flash-preview-tts',
       contents: [
         {
           role: 'user',
           parts: [
             {
-              text: cleanText
+              text: `${styleInstruction}${cleanText}`
             }
           ]
         }
@@ -1712,79 +1815,64 @@ async function startServer() {
 
     const b64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!b64) throw new Error('Empty Gemini TTS audio');
-    return Buffer.from(b64, 'base64');
+    const rawPcm = Buffer.from(b64, 'base64');
+    // Wrap raw 24kHz 16-bit mono PCM in a valid 44-byte RIFF/WAVE header if not already wrapped
+    if (rawPcm.length > 4 && rawPcm.toString('ascii', 0, 4) === 'RIFF') {
+      return rawPcm;
+    }
+    return pcmToWavBuffer(rawPcm, 24000, 1, 16);
   }
 
-  function splitIntoNaturalVietnameseClauses(cleanText: string, maxLen = 190): string[] {
-    const sentences = cleanText
-      .split(/(?<=[.?!;])\s+/)
-      .map((s) => s.trim())
+  function splitIntoNaturalVietnameseClauses(cleanText: string, maxLen = 195): string[] {
+    if (cleanText.length <= maxLen) {
+      return [cleanText.replace(/[,.;:!?\s]+$/, '').trim()].filter(Boolean);
+    }
+
+    const parts = cleanText
+      .split(/(?<=[,.?!;:])\s+/)
+      .map((p) => p.trim())
       .filter(Boolean);
 
     const clauses: string[] = [];
+    let currentClause = '';
 
-    for (const sentence of sentences) {
-      if (sentence.length <= maxLen) {
-        clauses.push(sentence);
-        continue;
-      }
-
-      const subParts = sentence
-        .split(/(?<=[,:])\s+/)
-        .map((p) => p.trim())
-        .filter(Boolean);
-
-      let currentClause = '';
-      for (const part of subParts) {
-        if (!currentClause) {
-          if (part.length <= maxLen) {
-            currentClause = part;
-          } else {
-            const words = part.split(' ');
-            let wordChunk = '';
-            for (const w of words) {
-              if ((wordChunk + ' ' + w).trim().length <= maxLen) {
-                wordChunk = (wordChunk + ' ' + w).trim();
-              } else {
-                if (wordChunk) clauses.push(wordChunk);
-                wordChunk = w.slice(0, maxLen);
-              }
-            }
-            currentClause = wordChunk;
-          }
-        } else if ((currentClause + ' ' + part).length <= maxLen) {
-          currentClause = `${currentClause} ${part}`;
-        } else {
-          clauses.push(currentClause);
+    for (const part of parts) {
+      if (!currentClause) {
+        if (part.length <= maxLen) {
           currentClause = part;
+        } else {
+          const words = part.split(' ');
+          let wordChunk = '';
+          for (const w of words) {
+            if ((wordChunk + ' ' + w).trim().length <= maxLen) {
+              wordChunk = (wordChunk + ' ' + w).trim();
+            } else {
+              if (wordChunk) clauses.push(wordChunk.replace(/[,.;:!?\s]+$/, '').trim());
+              wordChunk = w.slice(0, maxLen);
+            }
+          }
+          currentClause = wordChunk;
         }
-      }
-      if (currentClause) {
-        clauses.push(currentClause);
-      }
-    }
-
-    const merged: string[] = [];
-    for (const c of clauses) {
-      if (
-        merged.length > 0 &&
-        merged[merged.length - 1].length < 45 &&
-        merged[merged.length - 1].length + 1 + c.length <= maxLen
-      ) {
-        merged[merged.length - 1] = `${merged[merged.length - 1]} ${c}`;
+      } else if (currentClause.length + 1 + part.length <= maxLen) {
+        currentClause = `${currentClause} ${part}`;
       } else {
-        merged.push(c);
+        clauses.push(currentClause.replace(/[,.;:!?\s]+$/, '').trim());
+        currentClause = part;
       }
     }
 
-    return merged;
+    if (currentClause) {
+      clauses.push(currentClause.replace(/[,.;:!?\s]+$/, '').trim());
+    }
+
+    return clauses.filter(Boolean);
   }
 
   async function fetchSingleTtsChunk(chunk: string): Promise<Buffer> {
     const cached = ttsChunkCache.get(chunk);
     if (cached) return cached;
 
-    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&q=${encodeURIComponent(
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&ttsspeed=1&q=${encodeURIComponent(
       chunk
     )}`;
     const response = await fetch(ttsUrl, {
@@ -1799,7 +1887,7 @@ async function startServer() {
     const arrBuf = await response.arrayBuffer();
     const buf = Buffer.from(arrBuf);
 
-    if (ttsChunkCache.size > 400) {
+    if (ttsChunkCache.size > 500) {
       const firstKey = ttsChunkCache.keys().next().value;
       if (firstKey) ttsChunkCache.delete(firstKey);
     }
@@ -1807,7 +1895,7 @@ async function startServer() {
     return buf;
   }
 
-  // Synthesize Vietnamese Female TTS audio (Quỳnh Anh 4.0 Neural Voice + 6 female personas)
+  // Synthesize Vietnamese Female TTS audio (Quỳnh Anh 4.0, Ngọc Huyền Hà Nội & Hoài My Neural)
   app.post('/api/tts', async (req, res) => {
     const { text, voiceId } = req.body as { text?: string; voiceId?: string };
     const cleanText = normalizeVietnameseTtsText(text || '');
@@ -1822,50 +1910,77 @@ async function startServer() {
     if (cachedAudio) {
       res.json({
         audioBase64: cachedAudio.buffer.toString('base64'),
-        mimeType: cachedAudio.mimeType
+        mimeType: cachedAudio.mimeType,
+        voiceEngine: cachedAudio.voiceEngine
       });
       return;
     }
 
-    // 1. Try Quỳnh Anh 4.0 Neural Vietnamese Female TTS (single continuous stream, ultra-natural & gapless)
+    // 1. Try Neural Vietnamese Female TTS with distinct per-persona pitch & cadence
     try {
       const neuralMp3Buffer = await synthesizeQuynhAnhNeuralMp3(cleanText, activeVoiceId);
-      if (ttsAudioCache.size > 250) {
+      if (ttsAudioCache.size > 350) {
         const oldestKey = ttsAudioCache.keys().next().value;
         if (oldestKey) ttsAudioCache.delete(oldestKey);
       }
-      ttsAudioCache.set(cacheKey, { buffer: neuralMp3Buffer, mimeType: 'audio/mpeg' });
+      ttsAudioCache.set(cacheKey, {
+        buffer: neuralMp3Buffer,
+        mimeType: 'audio/mpeg',
+        voiceEngine: 'neural'
+      });
       res.json({
         audioBase64: neuralMp3Buffer.toString('base64'),
-        mimeType: 'audio/mpeg'
+        mimeType: 'audio/mpeg',
+        voiceEngine: 'neural'
       });
       return;
     } catch {
-      // Fall through to secondary engine if neural stream fails
+      // Fall through to Gemini multi-voice TTS or clause-based MP3 engine
     }
 
-    // 2. Fallback to Gemini 3.8 Flash Lite TTS
+    // 2. Try Gemini 2.5 Flash Multi-Voice Female TTS (Kore / Aoede / Zephyr)
     try {
       const geminiWavBuffer = await synthesizeGeminiFemaleWav(cleanText, activeVoiceId);
-      ttsAudioCache.set(cacheKey, { buffer: geminiWavBuffer, mimeType: 'audio/wav' });
+      if (ttsAudioCache.size > 350) {
+        const oldestKey = ttsAudioCache.keys().next().value;
+        if (oldestKey) ttsAudioCache.delete(oldestKey);
+      }
+      ttsAudioCache.set(cacheKey, {
+        buffer: geminiWavBuffer,
+        mimeType: 'audio/wav',
+        voiceEngine: 'gemini'
+      });
       res.json({
         audioBase64: geminiWavBuffer.toString('base64'),
-        mimeType: 'audio/wav'
+        mimeType: 'audio/wav',
+        voiceEngine: 'gemini'
       });
       return;
     } catch {
-      // Fall through to clause-based TTS
+      // Fall through to clause-split MP3 fallback
     }
 
-    // 3. Final fallback: natural clause-split TTS
-    const chunks = splitIntoNaturalVietnameseClauses(cleanText, 190).slice(0, 14);
+    // 3. Fallback: natural clause-split MP3 TTS with ID3 header stripping (client applies acoustic pitch/formant shaping)
+    const chunks = splitIntoNaturalVietnameseClauses(cleanText, 195).slice(0, 16);
     try {
-      const buffers = await Promise.all(chunks.map((chunk) => fetchSingleTtsChunk(chunk)));
-      const combined = Buffer.concat(buffers);
-      ttsAudioCache.set(cacheKey, { buffer: combined, mimeType: 'audio/mpeg' });
+      const rawBuffers = await Promise.all(chunks.map((chunk) => fetchSingleTtsChunk(chunk)));
+      const cleanedBuffers = rawBuffers.map((buf, idx) =>
+        idx === 0 ? buf : stripMp3Id3Header(buf)
+      );
+      const combined = Buffer.concat(cleanedBuffers);
+      if (ttsAudioCache.size > 350) {
+        const oldestKey = ttsAudioCache.keys().next().value;
+        if (oldestKey) ttsAudioCache.delete(oldestKey);
+      }
+      ttsAudioCache.set(cacheKey, {
+        buffer: combined,
+        mimeType: 'audio/mpeg',
+        voiceEngine: 'fallback'
+      });
       res.json({
         audioBase64: combined.toString('base64'),
-        mimeType: 'audio/mpeg'
+        mimeType: 'audio/mpeg',
+        voiceEngine: 'fallback'
       });
     } catch {
       res.status(502).json({ error: 'TTS stream unavailable' });

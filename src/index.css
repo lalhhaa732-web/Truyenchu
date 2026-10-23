@@ -59,227 +59,67 @@
   background: rgba(120, 113, 108, 0.45);
 }
 
-/* =========================================================
-   Apple-style Liquid Glass Effect for Avatar & Popover Menu
-   ========================================================= */
-@keyframes liquidSheenSweep {
+/* 3D Book-Opening Animation */
+@keyframes bookStageEnter {
   0% {
-    transform: translateX(-130%) rotate(25deg);
     opacity: 0;
+    transform: perspective(1400px) scale(0.84) translateY(18px);
   }
   25% {
-    opacity: 0.9;
-  }
-  100% {
-    transform: translateX(140%) rotate(25deg);
-    opacity: 0;
-  }
-}
-
-@keyframes liquidRippleExpand {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.95;
-  }
-  65% {
-    opacity: 0.45;
-  }
-  100% {
-    transform: scale(1.78);
-    opacity: 0;
-  }
-}
-
-@keyframes liquidOrbPulse {
-  0% {
-    transform: scale(1);
-  }
-  30% {
-    transform: scale(0.86) rotate(-2deg);
-  }
-  68% {
-    transform: scale(1.09) rotate(1deg);
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-@keyframes liquidMenuMorph {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.86);
-    filter: blur(10px);
-  }
-  65% {
     opacity: 1;
-    transform: translateY(2px) scale(1.015);
-    filter: blur(0px);
+    transform: perspective(1400px) scale(1) translateY(0);
+  }
+  75% {
+    opacity: 1;
+    transform: perspective(1400px) scale(1.06) translateX(24px);
+  }
+  100% {
+    opacity: 0;
+    transform: perspective(1400px) scale(1.42) translateX(48px);
+  }
+}
+
+@keyframes bookCoverFlip3D {
+  0% {
+    transform: rotateY(0deg);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+  }
+  20% {
+    transform: rotateY(-12deg);
+  }
+  80% {
+    transform: rotateY(-152deg);
+    box-shadow: -18px 20px 38px rgba(0, 0, 0, 0.32);
+  }
+  100% {
+    transform: rotateY(-165deg);
+    box-shadow: -8px 14px 25px rgba(0, 0, 0, 0.2);
+  }
+}
+
+@keyframes bookPageUnfoldEnter {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) rotateX(4deg) scale(0.96) translateY(14px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0px);
+    transform: perspective(1200px) rotateX(0deg) scale(1) translateY(0);
   }
 }
 
-@keyframes liquidCausticFloat {
-  0%, 100% {
-    transform: rotate(0deg) scale(1);
-  }
-  50% {
-    transform: rotate(180deg) scale(1.06);
-  }
+.animate-book-stage {
+  animation: bookStageEnter 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-style: preserve-3d;
 }
 
-.liquid-glass-avatar {
-  position: relative;
-  isolation: isolate;
-  backdrop-filter: blur(16px) saturate(200%);
-  -webkit-backdrop-filter: blur(16px) saturate(200%);
-  box-shadow:
-    0 6px 20px -3px rgba(0, 0, 0, 0.38),
-    0 0 0 1px rgba(255, 255, 255, 0.38),
-    inset 0 2px 3px rgba(255, 255, 255, 0.85),
-    inset 0 -2px 4px rgba(255, 255, 255, 0.35),
-    inset 0 0 10px rgba(255, 255, 255, 0.25);
-  transition:
-    transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 0.3s ease;
+.animate-book-cover-flip {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  animation: bookCoverFlip3D 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.liquid-glass-avatar:hover {
-  transform: translateY(-1.5px) scale(1.06);
-  box-shadow:
-    0 10px 26px -4px rgba(124, 92, 255, 0.45),
-    0 0 0 1.5px rgba(255, 255, 255, 0.62),
-    inset 0 2.5px 4px rgba(255, 255, 255, 0.95),
-    inset 0 -2.5px 5px rgba(255, 255, 255, 0.48),
-    inset 0 0 14px rgba(255, 255, 255, 0.35);
-}
-
-.liquid-glass-avatar:active {
-  transform: scale(0.88);
-}
-
-.liquid-glass-avatar-active {
-  animation: liquidOrbPulse 0.52s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow:
-    0 0 25px rgba(168, 85, 247, 0.6),
-    0 0 0 2px rgba(255, 255, 255, 0.78),
-    inset 0 3px 5px rgba(255, 255, 255, 0.98),
-    inset 0 -3px 6px rgba(255, 255, 255, 0.55),
-    inset 0 0 16px rgba(255, 255, 255, 0.45);
-}
-
-/* Specular dome lens overlay over the avatar image */
-.liquid-glass-lens {
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  pointer-events: none;
-  z-index: 20;
-  background:
-    radial-gradient(120% 90% at 28% 18%, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.16) 34%, rgba(255, 255, 255, 0) 60%),
-    radial-gradient(90% 80% at 75% 84%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 55%);
-  box-shadow:
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.88),
-    inset 0 -1.5px 2.5px rgba(255, 255, 255, 0.38);
-  overflow: hidden;
-}
-
-/* Gliding light reflection inside lens */
-.liquid-glass-lens::after {
-  content: '';
-  position: absolute;
-  top: -40%;
-  left: -30%;
-  width: 55%;
-  height: 180%;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.72) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  transform: translateX(-130%) rotate(25deg);
-  pointer-events: none;
-}
-
-.liquid-glass-avatar:hover .liquid-glass-lens::after,
-.liquid-glass-avatar-burst .liquid-glass-lens::after {
-  animation: liquidSheenSweep 0.65s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Concentric refractive ripple ring when clicked */
-.liquid-glass-ripple {
-  position: absolute;
-  inset: -3px;
-  border-radius: 9999px;
-  pointer-events: none;
-  z-index: 0;
-  border: 1.5px solid rgba(255, 255, 255, 0.78);
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(168, 85, 247, 0.22) 60%,
-    transparent 100%
-  );
-  box-shadow:
-    0 0 14px rgba(255, 255, 255, 0.55),
-    inset 0 0 8px rgba(255, 255, 255, 0.65);
-  animation: liquidRippleExpand 0.62s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Frosted Liquid Glass Dropdown & Modal surface when clicking avatar */
-.liquid-glass-popover {
-  background: linear-gradient(
-    145deg,
-    rgba(30, 30, 46, 0.78) 0%,
-    rgba(20, 20, 32, 0.84) 55%,
-    rgba(28, 25, 44, 0.80) 100%
-  );
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 24px 60px -10px rgba(0, 0, 0, 0.68),
-    0 0 0 0.5px rgba(255, 255, 255, 0.16),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.35),
-    inset 0 -1px 2px rgba(255, 255, 255, 0.12);
-  transform-origin: top right;
-  animation: liquidMenuMorph 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-/* Interactive menu item inside the Liquid Glass popover */
-.liquid-glass-menu-item {
-  position: relative;
-  overflow: hidden;
-  transition:
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    background-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.liquid-glass-menu-item:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.15) 0%,
-    rgba(255, 255, 255, 0.06) 100%
-  );
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.28),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.08),
-    0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.liquid-glass-menu-item:active {
-  transform: scale(0.96);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.24) 0%,
-    rgba(168, 85, 247, 0.18) 100%
-  );
+.animate-book-page-enter {
+  animation: bookPageUnfoldEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 

@@ -175,7 +175,6 @@ export const AvatarProfileMenu: React.FC<AvatarProfileMenuProps> = ({
   onSignOut
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [burstKey, setBurstKey] = useState(0);
   const [activeModalSection, setActiveModalSection] = useState<ProfileModalSection>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -288,15 +287,11 @@ export const AvatarProfileMenu: React.FC<AvatarProfileMenuProps> = ({
   const activePet =
     SPIRIT_PETS.find((p) => p.id === profile.equippedPetId) || SPIRIT_PETS[0];
 
-  const hasLiquidGlass = (profile.level || 1) >= 50;
-
   const renderAvatarGraphic = (sizeClass: string) => {
     if (currentUser?.photoURL) {
       return (
         <div
-          className={`${sizeClass} rounded-full relative overflow-hidden shrink-0 ${
-            hasLiquidGlass ? 'liquid-glass-avatar' : ''
-          } ${ringStyleMap[profile.ringColor]}`}
+          className={`${sizeClass} rounded-full relative overflow-hidden shrink-0 ${ringStyleMap[profile.ringColor]}`}
         >
           <img
             src={currentUser.photoURL}
@@ -304,18 +299,14 @@ export const AvatarProfileMenu: React.FC<AvatarProfileMenuProps> = ({
             className="w-full h-full rounded-full object-cover"
             referrerPolicy="no-referrer"
           />
-          {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
         </div>
       );
     }
 
     return (
       <div
-        className={`${sizeClass} rounded-full bg-gradient-to-br ${activePreset.svgBg} ${ringStyleMap[profile.ringColor]} ${
-          hasLiquidGlass ? 'liquid-glass-avatar' : ''
-        } relative overflow-hidden flex items-center justify-center shrink-0 select-none`}
+        className={`${sizeClass} rounded-full bg-gradient-to-br ${activePreset.svgBg} ${ringStyleMap[profile.ringColor]} relative overflow-hidden flex items-center justify-center shrink-0 select-none`}
       >
-        {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
         {/* Illustrated Anime/Eastern Scholar Silhouette */}
         <svg viewBox="0 0 100 100" className="w-full h-full">
           <defs>
@@ -371,23 +362,14 @@ export const AvatarProfileMenu: React.FC<AvatarProfileMenuProps> = ({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Top Bar Avatar Ring Trigger Button (Liquid Glass unlocked at Lv 50+) */}
+      {/* Top Bar Avatar Ring Trigger Button */}
       <div className="relative flex items-center justify-center">
-        {hasLiquidGlass && burstKey > 0 && (
-          <span key={`ripple-${burstKey}`} className="liquid-glass-ripple" aria-hidden="true" />
-        )}
         <button
-          key={`btn-${burstKey}`}
           type="button"
           onClick={() => {
-            if (hasLiquidGlass) setBurstKey((k) => k + 1);
             setIsDropdownOpen((prev) => !prev);
           }}
-          className={`relative flex items-center justify-center rounded-full p-0.5 cursor-pointer focus:outline-none ${
-            hasLiquidGlass && burstKey > 0
-              ? 'liquid-glass-avatar-active liquid-glass-avatar-burst'
-              : 'transition-transform active:scale-95'
-          }`}
+          className="relative flex items-center justify-center rounded-full p-0.5 cursor-pointer focus:outline-none transition-transform active:scale-95"
           aria-label="Mở menu tài khoản"
           title={`${profile.displayName} (Lv ${profile.level} · ${profile.equippedTitle})`}
         >
@@ -400,18 +382,13 @@ export const AvatarProfileMenu: React.FC<AvatarProfileMenuProps> = ({
       {/* Dropdown Menu */}
       {isDropdownOpen && (
         <div
-          className={`absolute right-0 mt-3 w-76 sm:w-80 rounded-2xl text-stone-100 z-50 overflow-hidden ${
-            hasLiquidGlass
-              ? 'liquid-glass-popover'
-              : 'bg-[#181B23] border border-[#2A2F3D] shadow-[0_20px_50px_rgba(0,0,0,0.65)]'
-          }`}
+          className="absolute right-0 mt-3 w-76 sm:w-80 rounded-2xl text-stone-100 z-50 overflow-hidden bg-[#181B23] border border-[#2A2F3D] shadow-[0_20px_50px_rgba(0,0,0,0.65)]"
         >
           {/* Top Profile Header inside Dropdown */}
           <div className="p-4 flex items-center gap-3.5">
             <button
               type="button"
               onClick={() => {
-                if (hasLiquidGlass) setBurstKey((k) => k + 1);
                 openSection('profile');
               }}
               className="shrink-0 cursor-pointer"
@@ -859,31 +836,10 @@ export const AvatarProfileMenu: React.FC<AvatarProfileMenuProps> = ({
                     <div className="border-t border-[#2E3446] pt-4 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold text-white">
-                          Tốc độ cuộn tự động (Auto-Scroll)
-                        </p>
-                        <p className="text-xs text-[#9BA3B8]">
-                          Mức tốc độ: {settings.autoScrollSpeed}x
-                        </p>
-                      </div>
-                      <input
-                        type="range"
-                        min={1}
-                        max={10}
-                        value={settings.autoScrollSpeed}
-                        onChange={(e) =>
-                          onUpdateSettings({ autoScrollSpeed: Number(e.target.value) })
-                        }
-                        className="w-32 accent-violet-500 cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="border-t border-[#2E3446] pt-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-white">
                           Tự động chuyển chương mới
                         </p>
                         <p className="text-xs text-[#9BA3B8]">
-                          Tự chuyển sang chương kế tiếp khi cuộn tới cuối trang
+                          Tự chuyển sang chương kế tiếp khi đọc tới cuối chương
                         </p>
                       </div>
                       <button

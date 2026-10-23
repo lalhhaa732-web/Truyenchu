@@ -233,10 +233,6 @@ export function getTitleTheme(equippedTitle?: string, fallbackLevel = 1): TitleD
   return getTitleForLevel(fallbackLevel);
 }
 
-export function hasLiquidGlassEffect(level: number): boolean {
-  return Math.floor(Number(level) || 1) >= 50;
-}
-
 export function getRequiredExpForLevel(level: number): number {
   const lvl = Math.max(1, Math.min(100, Math.floor(Number(level) || 1)));
   if (lvl < 20) {
@@ -334,7 +330,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [bioInput, setBioInput] = useState(profile.bio);
   const [avatarInput, setAvatarInput] = useState(profile.avatarUrl);
   const [savedNotice, setSavedNotice] = useState(false);
-  const [avatarClickBurst, setAvatarClickBurst] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -346,7 +341,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   if (!activeSection) return null;
 
   const activeTitleTheme = getTitleTheme(profile.equippedTitle, profile.level);
-  const hasLiquidGlass = hasLiquidGlassEffect(profile.level);
   const requiredExp = getRequiredExpForLevel(profile.level);
   const currentExpRule = getReadingExpRule(profile.level);
   const expProgressPercent =
@@ -417,13 +411,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60">
       <div
-        className={`w-full max-w-lg rounded-2xl text-stone-100 overflow-hidden flex flex-col max-h-[90vh] ${
-          hasLiquidGlass
-            ? 'liquid-glass-popover'
-            : 'bg-[#181824] border border-white/10 shadow-2xl'
-        }`}
+        className="w-full max-w-lg rounded-2xl text-stone-100 overflow-hidden flex flex-col max-h-[90vh] bg-[#181824] border border-white/10 shadow-2xl"
         style={{ transformOrigin: 'center center' }}
       >
         {/* Top Modal Header */}
@@ -480,27 +470,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="space-y-4">
               <div className="flex items-center gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-white/5 border border-white/10">
                 <div className="relative flex items-center justify-center shrink-0">
-                  {hasLiquidGlass && avatarClickBurst > 0 && (
-                    <span
-                      key={`modal-acc-ripple-${avatarClickBurst}`}
-                      className="liquid-glass-ripple"
-                      aria-hidden="true"
-                    />
-                  )}
                   <button
-                    key={`modal-acc-orb-${avatarClickBurst}`}
                     type="button"
                     onClick={() => {
-                      if (hasLiquidGlass) setAvatarClickBurst((k) => k + 1);
                       onSwitchSection('profile');
                     }}
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[3px] shrink-0 cursor-pointer transition-transform active:scale-95 ${
-                      hasLiquidGlass
-                        ? `liquid-glass-avatar ${
-                            avatarClickBurst > 0 ? 'liquid-glass-avatar-active liquid-glass-avatar-burst' : ''
-                          }`
-                        : ''
-                    } ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[3px] shrink-0 cursor-pointer transition-transform active:scale-95 ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
                     title="Nhấn vào Avatar để đổi ảnh đại diện"
                   >
                     <div className="relative w-full h-full rounded-full overflow-hidden bg-[#181824]">
@@ -509,7 +484,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         alt={profile.nickname}
                         className="w-full h-full rounded-full object-cover"
                       />
-                      {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
                     </div>
                   </button>
                 </div>
@@ -522,16 +496,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500/25 to-yellow-500/25 border border-amber-400/60 text-[10px] font-extrabold text-amber-300 uppercase tracking-wider shrink-0">
                         <Crown className="w-3 h-3 text-amber-400 shrink-0" />
                         Admin
-                      </span>
-                    )}
-                    {hasLiquidGlass ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/40 text-[10px] font-bold text-cyan-300 shrink-0">
-                        <Sparkles className="w-2.5 h-2.5 text-cyan-300 shrink-0" />
-                        Liquid Glass
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-medium text-stone-400 shrink-0">
-                        Liquid Glass mở ở Lv 50
                       </span>
                     )}
                   </div>
@@ -640,7 +604,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <div className="flex justify-between text-[10px] font-mono-num text-stone-500">
                       <span>Lv 1</span>
                       <span>Lv 25</span>
-                      <span>Lv 50 (Liquid Glass)</span>
+                      <span>Lv 50</span>
                       <span>Lv 75</span>
                       <span>Lv 100</span>
                     </div>
@@ -716,27 +680,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <form onSubmit={handleSaveProfile} className="space-y-4">
               <div className="flex items-center gap-3.5">
                 <div className="relative flex items-center justify-center shrink-0">
-                  {hasLiquidGlass && avatarClickBurst > 0 && (
-                    <span
-                      key={`modal-prof-ripple-${avatarClickBurst}`}
-                      className="liquid-glass-ripple"
-                      aria-hidden="true"
-                    />
-                  )}
                   <button
-                    key={`modal-prof-orb-${avatarClickBurst}`}
                     type="button"
                     onClick={() => {
-                      if (hasLiquidGlass) setAvatarClickBurst((k) => k + 1);
                       fileInputRef.current?.click();
                     }}
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[3px] shrink-0 cursor-pointer transition-transform active:scale-95 ${
-                      hasLiquidGlass
-                        ? `liquid-glass-avatar ${
-                            avatarClickBurst > 0 ? 'liquid-glass-avatar-active liquid-glass-avatar-burst' : ''
-                          }`
-                        : ''
-                    } ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[3px] shrink-0 cursor-pointer transition-transform active:scale-95 ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
                     title="Nhấn để tải ảnh đại diện mới"
                   >
                     <div className="relative w-full h-full rounded-full overflow-hidden bg-[#181824]">
@@ -745,7 +694,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         alt="Avatar preview"
                         className="w-full h-full rounded-full object-cover"
                       />
-                      {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
                     </div>
                   </button>
                 </div>
@@ -753,8 +701,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <p className="text-xs font-medium text-stone-300 truncate">
                     Ảnh đại diện{' '}
                     <span className="text-stone-400">
-                      (Viền {activeTitleTheme.colorName}
-                      {hasLiquidGlass ? ' · Liquid Glass' : ' · Liquid Glass mở từ Lv 50'})
+                      (Viền {activeTitleTheme.colorName})
                     </span>
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
@@ -768,12 +715,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        if (hasLiquidGlass) setAvatarClickBurst((k) => k + 1);
                         fileInputRef.current?.click();
                       }}
-                      className={`px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-semibold text-white flex items-center gap-1.5 transition-colors cursor-pointer ${
-                        hasLiquidGlass ? 'liquid-glass-menu-item' : ''
-                      }`}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-semibold text-white flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <ImagePlus className="w-4 h-4 text-purple-400 shrink-0" />
                       <span>Tải từ thư viện ảnh</span>
@@ -785,18 +729,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           key={url}
                           type="button"
                           onClick={() => {
-                            if (hasLiquidGlass) setAvatarClickBurst((k) => k + 1);
                             setAvatarInput(url);
                           }}
                           className={`relative w-8 h-8 rounded-full overflow-hidden border-2 transition-all cursor-pointer ${
-                            hasLiquidGlass ? 'liquid-glass-avatar' : ''
-                          } ${
                             avatarInput === url ? 'border-purple-400 scale-110' : 'border-white/30 opacity-80 hover:opacity-100'
                           }`}
                           title={`Ảnh mẫu ${idx + 1}`}
                         >
                           <img src={url} alt={`Mẫu ${idx + 1}`} className="w-full h-full object-cover rounded-full" />
-                          {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
                         </button>
                       ))}
                     </div>
@@ -888,26 +828,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-stone-300 font-medium">Tốc độ tự động cuộn mặc định</span>
-                  <span className="font-mono-num text-purple-400">{settings.autoScrollSpeed}x</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={settings.autoScrollSpeed}
-                  onChange={(e) => onUpdateSettings({ autoScrollSpeed: Number(e.target.value) })}
-                  className="w-full accent-purple-500 cursor-pointer"
-                />
-              </div>
-
               {/* Female Reading Voice Selection in Account Settings */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <label className="block text-xs font-medium text-stone-300">
-                    Giọng đọc Nữ mặc định (6 giọng nữ)
+                    Giọng đọc Nữ mặc định (3 giọng nữ)
                   </label>
                   <span className="text-[11px] text-purple-400 font-semibold">
                     100% Giọng Nữ
@@ -1026,18 +951,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (hasLiquidGlass) setAvatarClickBurst((k) => k + 1);
-                    }}
-                    className={`relative w-11 h-11 rounded-full p-[2.5px] shrink-0 cursor-pointer ${
-                      hasLiquidGlass
-                        ? `liquid-glass-avatar ${
-                            avatarClickBurst > 0 ? 'liquid-glass-avatar-active liquid-glass-avatar-burst' : ''
-                          }`
-                        : ''
-                    } ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
+                  <div
+                    className={`relative w-11 h-11 rounded-full p-[2.5px] shrink-0 ${activeTitleTheme.ringClass} ${activeTitleTheme.glowClass}`}
                   >
                     <div className="relative w-full h-full rounded-full overflow-hidden bg-[#181824]">
                       <img
@@ -1045,9 +960,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         alt={profile.nickname}
                         className="w-full h-full rounded-full object-cover"
                       />
-                      {hasLiquidGlass && <span className="liquid-glass-lens" aria-hidden="true" />}
                     </div>
-                  </button>
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] text-stone-400 truncate">Đang trang bị (Viền Avatar đổi theo màu):</p>
                     <p className={`text-sm font-bold truncate ${activeTitleTheme.textClass}`}>

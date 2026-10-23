@@ -4,8 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   List,
-  Play,
-  Pause,
   Volume2,
   VolumeX,
   Sliders,
@@ -38,38 +36,234 @@ interface ReaderViewProps {
   isFetchingNextChapter?: boolean;
 }
 
-const PLAYBACK_SPEED_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+const PLAYBACK_SPEED_PRESETS = [0.75, 0.9, 1.0, 1.15, 1.25, 1.45, 1.75];
 
-function applyYoutubeStylePlaybackSpeed(audioEl: HTMLAudioElement, speed: number) {
-  const safeSpeed = Math.max(0.5, Math.min(2.0, Number(speed) || 1.0));
+function normalizeClientSpeechText(raw: string): string {
+  if (!raw) return '';
+  let text = raw
+    .replace(/^[*\-=~_•▪►◊+\s]+$/gm, ' ')
+    .replace(/[*#_~^=|\\<>]+/g, ' ')
+    // Remove brackets & quotes without adding comma pauses
+    .replace(/\[([^\]]+)\]/g, ' $1 ')
+    .replace(/【([^】]+)】/g, ' $1 ')
+    .replace(/《([^》]+)》/g, ' $1 ')
+    .replace(/\(([^)]+)\)/g, ' $1 ')
+    .replace(/\bC\.(\d+)\b/gi, 'Chương $1')
+    .replace(/\bQ\.(\d+)\b/gi, 'Quyển $1')
+    .replace(/\bv\.v\.+/gi, 'vân vân')
+    .replace(/\bko\b/gi, 'không')
+    .replace(/\bđc\b/gi, 'được')
+    .replace(/\b(\d{1,3})\.(\d{3})(?:\.(\d{3}))?\b/g, (_m, a, b, c) =>
+      c ? `${a}${b}${c}` : `${a}${b}`
+    )
+    // Turn dashes, quotes, ellipses, colons, and semicolons into seamless spaces
+    .replace(/(?:^|\n)\s*[-–—―]+\s*/g, ' ')
+    .replace(/(?<=\p{L})[-–](?=\p{L})/gu, ' ')
+    .replace(/[—–―-]+/g, ' ')
+    .replace(/[“”"«»„‟‹›'’‘`]/g, ' ')
+    .replace(/\.{2,}|…+/g, ' ')
+    .replace(/[;:]+/g, ' ')
+    .replace(/[!?]+/g, '.')
+    // Remove commas after short phrases (1-4 words) so the voice flows without frequent stops
+    .replace(/(?:^|(?<=[.,]))\s*([^\s.,]{1,14}(?:\s+[^\s.,]{1,14}){0,3}),\s*/g, ' $1 ')
+    // Soften remaining commas: only keep a light comma if the preceding clause is long (>= 32 chars), otherwise use a seamless space
+    .replace(/,\s*/g, (_match, offset, fullStr) => {
+      const before = fullStr.slice(Math.max(0, offset - 36), offset);
+      return before.includes(',') || before.includes('.') || before.trim().length < 32 ? ' ' : ', ';
+    })
+    // Convert periods (except decimal numbers) into a brief comma micro-breath (or space if the sentence is short)
+    .replace(/\.(?=[^\d]|$)/g, (_match, offset, fullStr) => {
+      const before = fullStr.slice(Math.max(0, offset - 26), offset);
+      return before.includes(',') || before.trim().length < 22 ? ' ' : ', ';
+    })
+    .replace(/,\s*,+/g, ', ')
+    .replace(/\s+,/g, ',')
+    .replace(/,(?=[^\s])/g, ', ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  text = text.replace(/^[,.;:!?\s]+/, '').replace(/[,.;:!?\s]+$/, '').trim();
+  return text;
+}
+
+function isSpeakableText(raw: string): boolean {
+  const cleaned = normalizeClientSpeechText(raw);
+  return /[\p{L}\p{N}]/u.test(cleaned);
+}
+
+let sharedVoiceAudioCtx: AudioContext | null = null;
+const connectedAudioElements = new WeakMap<HTMLAudioElement, boolean>();
+
+function attachVoiceTimbreShaper(audioEl: HTMLAudioElement, voiceId?: string) {
+  if (typeof window === 'undefined') return;
+  if (connectedAudioElements.get(audioEl)) return;
+
+  const AudioCtx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return;
+
+  try {
+    if (!sharedVoiceAudioCtx) {
+      sharedVoiceAudioCtx = new AudioCtx();
+    }
+    if (sharedVoiceAudioCtx.state === 'suspended') {
+      sharedVoiceAudioCtx.resume().catch(() => {});
+    }
+
+    const source = sharedVoiceAudioCtx.createMediaElementSource(audioEl);
+    const lowShelf = sharedVoiceAudioCtx.createBiquadFilter();
+    lowShelf.type = 'lowshelf';
+    lowShelf.frequency.value = 230;
+
+    const formantPeak = sharedVoiceAudioCtx.createBiquadFilter();
+    formantPeak.type = 'peaking';
+    formantPeak.Q.value = 1.05;
+
+    const highShelf = sharedVoiceAudioCtx.createBiquadFilter();
+    highShelf.type = 'highshelf';
+    highShelf.frequency.value = 6200;
+
+    if (voiceId === 'ngoc-huyen-ha-noi') {
+      // Ngọc Huyền Hà Nội: Warm, deep chest resonance (+5.5dB @ 230Hz) & velvety soft highs (-4dB)
+      lowShelf.gain.value = 5.5;
+      formantPeak.frequency.value = 2700;
+      formantPeak.gain.value = -3.5;
+      highShelf.gain.value = -4.0;
+    } else if (voiceId === 'quynh-anh-4-0') {
+      // Quỳnh Anh 4.0: Crisp, youthful, bright presence (-3.5dB low, +5dB @ 3.4kHz, +3.5dB air)
+      lowShelf.gain.value = -3.5;
+      formantPeak.frequency.value = 3400;
+      formantPeak.gain.value = 5.0;
+      highShelf.gain.value = 3.5;
+    } else {
+      // Hoài My Neural: Pure flat reference vi-VN-HoaiMyNeural
+      lowShelf.gain.value = 0;
+      formantPeak.frequency.value = 3000;
+      formantPeak.gain.value = 0;
+      highShelf.gain.value = 0;
+    }
+
+    source.connect(lowShelf);
+    lowShelf.connect(formantPeak);
+    formantPeak.connect(highShelf);
+    highShelf.connect(sharedVoiceAudioCtx.destination);
+    connectedAudioElements.set(audioEl, true);
+  } catch {
+    // Fallback to direct element output if Web Audio API graph fails
+  }
+}
+
+function applyYoutubeStylePlaybackSpeed(
+  audioEl: HTMLAudioElement,
+  speed: number,
+  voiceId?: string,
+  voiceEngine?: 'neural' | 'gemini' | 'fallback'
+) {
+  let effectiveSpeed = Math.max(0.5, Math.min(2.0, Number(speed) || 1.0));
   const extAudio = audioEl as HTMLAudioElement & {
     mozPreservesPitch?: boolean;
     webkitPreservesPitch?: boolean;
   };
 
-  // Enable pitch-preserving time-stretching (WSOLA) only if not already enabled
-  if (audioEl.preservesPitch !== true) {
-    audioEl.preservesPitch = true;
-  }
-  if (extAudio.mozPreservesPitch !== true) {
-    extAudio.mozPreservesPitch = true;
-  }
-  if (extAudio.webkitPreservesPitch !== true) {
-    extAudio.webkitPreservesPitch = true;
+  // If upstream fell back to the single-voice clause engine, unlock pitch shifting so
+  // Quỳnh Anh 4.0 (bright higher vocal cords) and Ngọc Huyền Hà Nội (warm deeper vocal cords)
+  // remain distinctly different even on fallback streams.
+  const shouldShiftFallbackPitch =
+    voiceEngine === 'fallback' &&
+    (voiceId === 'quynh-anh-4-0' || voiceId === 'ngoc-huyen-ha-noi');
+
+  if (shouldShiftFallbackPitch) {
+    const pitchFactor = voiceId === 'quynh-anh-4-0' ? 1.09 : 0.91;
+    effectiveSpeed = Math.max(0.5, Math.min(2.0, effectiveSpeed * pitchFactor));
+    if (audioEl.preservesPitch !== false) {
+      audioEl.preservesPitch = false;
+    }
+    if (extAudio.mozPreservesPitch !== false) {
+      extAudio.mozPreservesPitch = false;
+    }
+    if (extAudio.webkitPreservesPitch !== false) {
+      extAudio.webkitPreservesPitch = false;
+    }
+  } else {
+    // Enable pitch-preserving time-stretching (WSOLA) when server already synthesized distinct neural pitch
+    if (audioEl.preservesPitch !== true) {
+      audioEl.preservesPitch = true;
+    }
+    if (extAudio.mozPreservesPitch !== true) {
+      extAudio.mozPreservesPitch = true;
+    }
+    if (extAudio.webkitPreservesPitch !== true) {
+      extAudio.webkitPreservesPitch = true;
+    }
   }
 
   // Only update playbackRate when it actually changes to avoid flushing the WSOLA audio buffer mid-speech
-  if (Math.abs(audioEl.defaultPlaybackRate - safeSpeed) > 0.005) {
-    audioEl.defaultPlaybackRate = safeSpeed;
+  if (Math.abs(audioEl.defaultPlaybackRate - effectiveSpeed) > 0.005) {
+    audioEl.defaultPlaybackRate = effectiveSpeed;
   }
-  if (Math.abs(audioEl.playbackRate - safeSpeed) > 0.005) {
-    audioEl.playbackRate = safeSpeed;
+  if (Math.abs(audioEl.playbackRate - effectiveSpeed) > 0.005) {
+    audioEl.playbackRate = effectiveSpeed;
   }
 }
 
-function pickBrowserFemaleViVoice(): SpeechSynthesisVoice | null {
+function findHoaiMyVoiceFromSpeechSynthesis(
+  voicesList?: SpeechSynthesisVoice[]
+): SpeechSynthesisVoice | null {
   if (!('speechSynthesis' in window)) return null;
-  const voices = window.speechSynthesis.getVoices();
+  const voices = voicesList ?? window.speechSynthesis.getVoices();
+  if (!voices || voices.length === 0) return null;
+
+  // 1. Exact or direct match for 'vi-VN-HoaiMyNeural'
+  const exactHoaiMyNeural = voices.find(
+    (v) =>
+      v.name === 'vi-VN-HoaiMyNeural' ||
+      v.voiceURI === 'vi-VN-HoaiMyNeural' ||
+      v.name.includes('vi-VN-HoaiMyNeural') ||
+      v.voiceURI.includes('vi-VN-HoaiMyNeural')
+  );
+  if (exactHoaiMyNeural) return exactHoaiMyNeural;
+
+  // 2. Match any voice whose name or voiceURI contains 'HoaiMy' (or 'Hoài My')
+  const hoaiMyMatch = voices.find(
+    (v) =>
+      v.name.includes('HoaiMy') ||
+      /hoaimy|hoai\s*my|hoài\s*my/i.test(v.name) ||
+      /hoaimy/i.test(v.voiceURI)
+  );
+  return hoaiMyMatch || null;
+}
+
+function ensureSpeechSynthesisVoicesLoaded(): Promise<SpeechSynthesisVoice[]> {
+  if (!('speechSynthesis' in window)) return Promise.resolve([]);
+  const existing = window.speechSynthesis.getVoices();
+  if (existing && existing.length > 0) {
+    return Promise.resolve(existing);
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.speechSynthesis.removeEventListener('voiceschanged', finish);
+      resolve(window.speechSynthesis.getVoices() || []);
+    };
+    window.speechSynthesis.addEventListener('voiceschanged', finish, { once: true });
+    window.setTimeout(finish, 350);
+  });
+}
+
+function pickBrowserFemaleViVoice(
+  voicesList?: SpeechSynthesisVoice[]
+): SpeechSynthesisVoice | null {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = voicesList ?? window.speechSynthesis.getVoices();
+  if (!voices || voices.length === 0) return null;
+
+  // Prioritize 'vi-VN-HoaiMyNeural' or any voice containing 'HoaiMy' first
+  const hoaiMyVoice = findHoaiMyVoiceFromSpeechSynthesis(voices);
+  if (hoaiMyVoice) return hoaiMyVoice;
+
   const viVoices = voices.filter((v) => v.lang.toLowerCase().includes('vi'));
   if (viVoices.length === 0) return null;
 
@@ -98,8 +292,8 @@ function buildWeightedTokens(text: string): WeightedWordToken[] {
   const weights = matches.map((m) => {
     const word = m[1];
     let w = Math.max(1.6, word.length);
-    if (/[,;:]/.test(word)) w += 2.6;
-    if (/[.!?…—]/.test(word)) w += 4.2;
+    if (/[,;:]/.test(word)) w += 0.45;
+    if (/[.!?…—]/.test(word)) w += 0.9;
     return w;
   });
 
@@ -131,7 +325,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onFetchNextChapter,
   isFetchingNextChapter = false
 }) => {
-  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [activeSentenceIndex, setActiveSentenceIndex] = useState<number | null>(null);
   const [sentenceProgress, setSentenceProgress] = useState<number>(0);
@@ -141,8 +334,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [scrollProgress, setScrollProgress] = useState(0);
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
 
-  const autoScrollFrameRef = useRef<number | null>(null);
-  const lastFrameTimeRef = useRef<number>(0);
   const countdownTimerRef = useRef<number | null>(null);
   const ttsProgressFrameRef = useRef<number | null>(null);
   const segmentStartTimeRef = useRef<number>(0);
@@ -154,6 +345,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const preloadedAudioMapRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const ttsBlobUrlCacheRef = useRef<Map<string, string>>(new Map());
+  const ttsEngineCacheRef = useRef<Map<string, 'neural' | 'gemini' | 'fallback'>>(new Map());
   const ttsInFlightMapRef = useRef<Map<string, Promise<string>>>(new Map());
   const usingFallbackSynthRef = useRef<boolean>(false);
   const speechSessionRef = useRef<number>(0);
@@ -206,8 +398,12 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
   // Fetch & decode TTS audio into a cached Blob URL + pre-warmed HTMLAudioElement (deduplicated)
   const ensureAudioBlobUrl = (text: string, voiceId: string): Promise<string> => {
-    const cleanText = text.trim();
-    const cacheKey = `${voiceId || 'quynh-anh-4-0'}::${cleanText}`;
+    const cleanText = normalizeClientSpeechText(text);
+    if (!cleanText) {
+      return Promise.reject(new Error('Empty speakable text'));
+    }
+    const resolvedVoiceId = voiceId || 'quynh-anh-4-0';
+    const cacheKey = `${resolvedVoiceId}::${cleanText}`;
     const cachedUrl = ttsBlobUrlCacheRef.current.get(cacheKey);
     if (cachedUrl) {
       return Promise.resolve(cachedUrl);
@@ -225,13 +421,19 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: cleanText,
-            voiceId
+            voiceId: resolvedVoiceId
           })
         });
 
         if (!res.ok) throw new Error('TTS API fallback');
         const data = await res.json();
         if (!data.audioBase64) throw new Error('Empty audio');
+
+        const engineType: 'neural' | 'gemini' | 'fallback' =
+          data.voiceEngine === 'fallback' || data.voiceEngine === 'gemini'
+            ? data.voiceEngine
+            : 'neural';
+        ttsEngineCacheRef.current.set(cacheKey, engineType);
 
         const binaryStr = window.atob(data.audioBase64);
         const bytes = new Uint8Array(binaryStr.length);
@@ -243,11 +445,31 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         const objectUrl = URL.createObjectURL(blob);
         ttsBlobUrlCacheRef.current.set(cacheKey, objectUrl);
 
-        // Pre-warm an HTMLAudioElement in memory so playback starts with 0ms decoding lag
+        // Pre-warm and pre-decode an HTMLAudioElement in memory so playback starts with 0ms decoding lag
         const warmAudio = new Audio(objectUrl);
         warmAudio.preload = 'auto';
-        applyYoutubeStylePlaybackSpeed(warmAudio, settingsRef.current.ttsRate || 1.0);
-        warmAudio.load();
+        applyYoutubeStylePlaybackSpeed(
+          warmAudio,
+          settingsRef.current.ttsRate || 1.0,
+          resolvedVoiceId,
+          engineType
+        );
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            warmAudio.removeEventListener('canplaythrough', finish);
+            warmAudio.removeEventListener('loadeddata', finish);
+            warmAudio.removeEventListener('error', finish);
+            resolve();
+          };
+          warmAudio.addEventListener('canplaythrough', finish, { once: true });
+          warmAudio.addEventListener('loadeddata', finish, { once: true });
+          warmAudio.addEventListener('error', finish, { once: true });
+          warmAudio.load();
+          window.setTimeout(finish, 160);
+        });
         preloadedAudioMapRef.current.set(cacheKey, warmAudio);
 
         return objectUrl;
@@ -260,29 +482,51 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     return fetchPromise;
   };
 
-  // Pre-fetch upcoming paragraphs in the background so transitions never wait on network
+  // Pre-fetch upcoming speakable paragraphs in the background with priority ordering
   const prefetchUpcomingParagraphs = (
     paragraphs: string[],
     fromIndex: number,
     count: number,
     voiceId: string
   ) => {
-    for (let i = fromIndex; i < Math.min(paragraphs.length, fromIndex + count); i++) {
+    const targets: string[] = [];
+    for (let i = fromIndex; i < paragraphs.length && targets.length < count; i++) {
       const text = paragraphs[i];
-      if (text && text.trim()) {
-        ensureAudioBlobUrl(text, voiceId).catch(() => {});
+      if (text && isSpeakableText(text)) {
+        targets.push(text);
       }
     }
+    if (targets.length === 0) return;
+
+    // Fetch the immediate next paragraph first so it never contends for bandwidth, then queue the rest
+    ensureAudioBlobUrl(targets[0], voiceId)
+      .catch(() => {})
+      .finally(() => {
+        for (let j = 1; j < targets.length; j++) {
+          ensureAudioBlobUrl(targets[j], voiceId).catch(() => {});
+        }
+      });
   };
 
   useEffect(() => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.getVoices();
+      const handleVoicesChanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+      window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+        if (ttsProgressFrameRef.current) {
+          cancelAnimationFrame(ttsProgressFrameRef.current);
+        }
+        if (countdownTimerRef.current) {
+          window.clearInterval(countdownTimerRef.current);
+        }
+        stopAudioNodes();
+      };
     }
     return () => {
-      if (autoScrollFrameRef.current) {
-        cancelAnimationFrame(autoScrollFrameRef.current);
-      }
       if (ttsProgressFrameRef.current) {
         cancelAnimationFrame(ttsProgressFrameRef.current);
       }
@@ -306,7 +550,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     // Gently keep the currently read paragraph within comfortable reading view
     const activeEl = activeParagraphRefs.current[activeSentenceIndex];
-    if (activeEl && !isAutoScrolling) {
+    if (activeEl) {
       const rect = activeEl.getBoundingClientRect();
       const vh = window.innerHeight;
       if (rect.top < vh * 0.16 || rect.bottom > vh * 0.82) {
@@ -344,7 +588,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         ttsProgressFrameRef.current = null;
       }
     };
-  }, [isSpeaking, activeSentenceIndex, isAutoScrolling]);
+  }, [isSpeaking, activeSentenceIndex]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -354,9 +598,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       countdownTimerRef.current = null;
     }
 
-    // Warm up the first 2 segments of the chapter in the background for instant start
+    // Warm up the first 4 speakable segments of the chapter in the background for instant start
     const chapterParagraphs = [`Chương ${chapter.number}: ${chapter.title}`, ...chapter.content];
-    prefetchUpcomingParagraphs(chapterParagraphs, 0, 2, settingsRef.current.ttsVoiceId);
+    prefetchUpcomingParagraphs(chapterParagraphs, 0, 4, settingsRef.current.ttsVoiceId);
 
     const shouldContinue = shouldAutoStartNewChapterRef.current || isSpeakingRef.current;
     shouldAutoStartNewChapterRef.current = false;
@@ -365,7 +609,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       stopAudioNodes();
       const timerId = window.setTimeout(() => {
         startSpeech(0);
-      }, 80);
+      }, 40);
       return () => window.clearTimeout(timerId);
     }
   }, [chapter.id]);
@@ -376,69 +620,12 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const pct = docHeight > 0 ? Math.min(100, Math.max(0, Math.round((scrollTop / docHeight) * 100))) : 100;
       setScrollProgress(pct);
-
-      if (isAutoScrolling && docHeight > 20 && scrollTop >= docHeight - 6) {
-        setIsAutoScrolling(false);
-        if (settings.autoNextChapter && chapter.number < novel.chapters.length) {
-          triggerAutoNextCountdown();
-        }
-      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isAutoScrolling, settings.autoNextChapter, chapter.number, novel.chapters.length]);
-
-  const triggerAutoNextCountdown = () => {
-    if (countdownTimerRef.current) return;
-    let remaining = 3;
-    setAutoAdvanceCountdown(remaining);
-    countdownTimerRef.current = window.setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        if (countdownTimerRef.current) {
-          window.clearInterval(countdownTimerRef.current);
-          countdownTimerRef.current = null;
-        }
-        setAutoAdvanceCountdown(null);
-        onSelectChapter(chapter.number + 1);
-        window.setTimeout(() => setIsAutoScrolling(true), 500);
-      } else {
-        setAutoAdvanceCountdown(remaining);
-      }
-    }, 1000);
-  };
-
-  useEffect(() => {
-    if (!isAutoScrolling) {
-      if (autoScrollFrameRef.current) {
-        cancelAnimationFrame(autoScrollFrameRef.current);
-        autoScrollFrameRef.current = null;
-      }
-      return;
-    }
-
-    lastFrameTimeRef.current = performance.now();
-
-    const step = (now: number) => {
-      const dt = (now - lastFrameTimeRef.current) / 1000;
-      lastFrameTimeRef.current = now;
-
-      const pixelsPerSecond = 14 + settings.autoScrollSpeed * 13.5;
-      window.scrollBy(0, pixelsPerSecond * dt);
-
-      autoScrollFrameRef.current = requestAnimationFrame(step);
-    };
-
-    autoScrollFrameRef.current = requestAnimationFrame(step);
-
-    return () => {
-      if (autoScrollFrameRef.current) {
-        cancelAnimationFrame(autoScrollFrameRef.current);
-      }
-    };
-  }, [isAutoScrolling, settings.autoScrollSpeed]);
+  }, [chapter.number, novel.chapters.length]);
 
   // Play a single text segment using pre-warmed HTML5 Audio with preservesPitch=true
   const playFemaleVoiceSegment = async (
@@ -450,76 +637,39 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     onError: () => void
   ) => {
     const initialSpeed = Math.max(0.5, Math.min(2.0, Number(requestedSpeed) || voiceOption.baseRate || 1.0));
-    const cleanText = text.trim();
+    const cleanText = normalizeClientSpeechText(text);
+    if (!cleanText) {
+      onDone();
+      return;
+    }
     const cacheKey = `${voiceOption.id}::${cleanText}`;
 
     fallbackBoundaryProgressRef.current = null;
     segmentStartTimeRef.current = performance.now();
     segmentEstimatedDurationRef.current = Math.max(
-      1400,
-      (cleanText.length / (14.2 * initialSpeed)) * 1000
+      1200,
+      (cleanText.length / (15.5 * initialSpeed)) * 1000
     );
     setSentenceProgress(0);
 
-    try {
-      const objectUrl = await ensureAudioBlobUrl(cleanText, voiceOption.id);
-      if (sessionId !== speechSessionRef.current) return;
-
-      // Reuse pre-warmed HTMLAudioElement if available for instant zero-stutter start
-      let audio = preloadedAudioMapRef.current.get(cacheKey);
-      if (audio) {
-        preloadedAudioMapRef.current.delete(cacheKey);
-        audio.currentTime = 0;
-      } else {
-        audio = new Audio(objectUrl);
-        audio.preload = 'auto';
-      }
-
-      const currentSpeed = Math.max(
-        0.5,
-        Math.min(2.0, Number(settingsRef.current.ttsRate) || initialSpeed)
-      );
-      applyYoutubeStylePlaybackSpeed(audio, currentSpeed);
-
-      audio.onended = () => {
-        if (sessionId !== speechSessionRef.current) return;
-        setSentenceProgress(1);
-        onDone();
-      };
-
-      audio.onerror = () => {
-        if (sessionId !== speechSessionRef.current) return;
-        onError();
-      };
-
-      segmentStartTimeRef.current = performance.now();
-      activeAudioRef.current = audio;
-      await audio.play();
-      return;
-    } catch {
-      if (sessionId !== speechSessionRef.current) return;
-      if (!('speechSynthesis' in window)) {
-        onError();
-        return;
-      }
+    const speakViaWindowSpeechSynthesis = (assignedVoice: SpeechSynthesisVoice | null) => {
       usingFallbackSynthRef.current = true;
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = 'vi-VN';
-      const femaleViVoice = pickBrowserFemaleViVoice();
-      if (femaleViVoice) {
-        utterance.voice = femaleViVoice;
+      if (assignedVoice) {
+        utterance.voice = assignedVoice;
       }
       const latestSpeed = Math.max(
         0.5,
         Math.min(2.0, Number(settingsRef.current.ttsRate) || initialSpeed)
       );
       utterance.rate = latestSpeed;
-      utterance.pitch = 1.0;
+      utterance.pitch = voiceOption.pitch || 1.0;
       segmentStartTimeRef.current = performance.now();
       segmentEstimatedDurationRef.current = Math.max(
-        1400,
-        (cleanText.length / (14.2 * latestSpeed)) * 1000
+        1200,
+        (cleanText.length / (15.5 * latestSpeed)) * 1000
       );
       utterance.onboundary = (event) => {
         if (sessionId !== speechSessionRef.current) return;
@@ -542,6 +692,90 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         onError();
       };
       window.speechSynthesis.speak(utterance);
+    };
+
+    // If user selected 'hoai-my-neural' and window.speechSynthesis has 'vi-VN-HoaiMyNeural' / 'HoaiMy', bind and speak directly
+    if (voiceOption.id === 'hoai-my-neural' && 'speechSynthesis' in window) {
+      const loadedVoices = await ensureSpeechSynthesisVoicesLoaded();
+      if (sessionId !== speechSessionRef.current) return;
+      const directHoaiMyVoice = findHoaiMyVoiceFromSpeechSynthesis(loadedVoices);
+      if (directHoaiMyVoice) {
+        speakViaWindowSpeechSynthesis(directHoaiMyVoice);
+        return;
+      }
+    }
+
+    try {
+      const objectUrl = await ensureAudioBlobUrl(cleanText, voiceOption.id);
+      if (sessionId !== speechSessionRef.current) return;
+
+      // Reuse pre-warmed HTMLAudioElement if available for instant zero-stutter start
+      let audio = preloadedAudioMapRef.current.get(cacheKey);
+      if (audio) {
+        preloadedAudioMapRef.current.delete(cacheKey);
+        if (audio.currentTime > 0) {
+          audio.currentTime = 0;
+        }
+      } else {
+        audio = new Audio(objectUrl);
+        audio.preload = 'auto';
+      }
+
+      const engineType = ttsEngineCacheRef.current.get(cacheKey) || 'neural';
+      const currentSpeed = Math.max(
+        0.5,
+        Math.min(2.0, Number(settingsRef.current.ttsRate) || initialSpeed)
+      );
+      attachVoiceTimbreShaper(audio, voiceOption.id);
+      applyYoutubeStylePlaybackSpeed(audio, currentSpeed, voiceOption.id, engineType);
+
+      let segmentFinished = false;
+      const finishSegment = () => {
+        if (segmentFinished || sessionId !== speechSessionRef.current) return;
+        segmentFinished = true;
+        audio.ontimeupdate = null;
+        audio.onended = null;
+        setSentenceProgress(1);
+        onDone();
+      };
+
+      audio.ontimeupdate = () => {
+        if (
+          audio.duration &&
+          Number.isFinite(audio.duration) &&
+          audio.duration > 0.55 &&
+          audio.currentTime >= audio.duration - 0.1
+        ) {
+          finishSegment();
+        }
+      };
+
+      audio.onended = () => {
+        finishSegment();
+      };
+
+      audio.onerror = () => {
+        if (segmentFinished || sessionId !== speechSessionRef.current) return;
+        segmentFinished = true;
+        onError();
+      };
+
+      segmentStartTimeRef.current = performance.now();
+      activeAudioRef.current = audio;
+      await audio.play();
+      return;
+    } catch {
+      if (sessionId !== speechSessionRef.current) return;
+      if (!('speechSynthesis' in window)) {
+        onError();
+        return;
+      }
+      const loadedVoices = await ensureSpeechSynthesisVoicesLoaded();
+      if (sessionId !== speechSessionRef.current) return;
+      const matchedVoice =
+        findHoaiMyVoiceFromSpeechSynthesis(loadedVoices) ||
+        pickBrowserFemaleViVoice(loadedVoices);
+      speakViaWindowSpeechSynthesis(matchedVoice);
     }
   };
 
@@ -558,7 +792,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     const sessionId = speechSessionRef.current;
     const paragraphs = [`Chương ${activeChap.number}: ${activeChap.title}`, ...activeChap.content];
 
-    if (startIndex >= paragraphs.length) {
+    // Skip over decorative or non-speakable lines (e.g. "***" or "---") with zero pause
+    let targetIndex = startIndex;
+    while (targetIndex < paragraphs.length && !isSpeakableText(paragraphs[targetIndex])) {
+      targetIndex += 1;
+    }
+
+    if (targetIndex >= paragraphs.length) {
       if (hasNextChap && nextChapObj) {
         shouldAutoStartNewChapterRef.current = true;
         isSpeakingRef.current = true;
@@ -600,34 +840,31 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     isSpeakingRef.current = true;
     setIsSpeaking(true);
-    setActiveSentenceIndex(startIndex);
+    setActiveSentenceIndex(targetIndex);
     setSentenceProgress(0);
 
     const voiceToUse = overrideVoice || getFemaleVoiceOption(settingsRef.current.ttsVoiceId);
     const rateToUse = overrideRate ?? settingsRef.current.ttsRate;
 
-    // Immediately pre-fetch and pre-decode the next 3 paragraphs in the background while current one plays
-    prefetchUpcomingParagraphs(paragraphs, startIndex + 1, 3, voiceToUse.id);
+    // Immediately pre-fetch and pre-decode the next 5 speakable paragraphs in the background while current one plays
+    prefetchUpcomingParagraphs(paragraphs, targetIndex + 1, 5, voiceToUse.id);
 
-    // When nearing the end of the current chapter, also pre-fetch the first 2 segments of the next chapter for zero-delay chapter transition
-    if (hasNextChap && startIndex >= Math.max(0, paragraphs.length - 2)) {
-      const nextChap = activeNovel.chapters.find((c) => c.number === activeChap.number + 1);
-      if (nextChap) {
-        const nextChapParagraphs = [
-          `Chương ${nextChap.number}: ${nextChap.title}`,
-          ...nextChap.content.slice(0, 1)
-        ];
-        prefetchUpcomingParagraphs(nextChapParagraphs, 0, 2, voiceToUse.id);
-      }
+    // When nearing the end of the current chapter, also pre-fetch the first 3 segments of the next chapter for zero-delay chapter transition
+    if (hasNextChap && nextChapObj && targetIndex >= Math.max(0, paragraphs.length - 3)) {
+      const nextChapParagraphs = [
+        `Chương ${nextChapObj.number}: ${nextChapObj.title}`,
+        ...nextChapObj.content.slice(0, 2)
+      ];
+      prefetchUpcomingParagraphs(nextChapParagraphs, 0, 3, voiceToUse.id);
     }
 
     playFemaleVoiceSegment(
-      paragraphs[startIndex],
+      paragraphs[targetIndex],
       voiceToUse,
       rateToUse,
       sessionId,
       () => {
-        startSpeech(startIndex + 1);
+        startSpeech(targetIndex + 1);
       },
       () => {
         isSpeakingRef.current = false;
@@ -663,7 +900,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     // Live-update HTML5 Audio playbackRate with preservesPitch=true (just like YouTube) without restarting audio
     if (activeAudioRef.current) {
-      applyYoutubeStylePlaybackSpeed(activeAudioRef.current, clampedRate);
+      applyYoutubeStylePlaybackSpeed(
+        activeAudioRef.current,
+        clampedRate,
+        settingsRef.current.ttsVoiceId
+      );
     } else if (isSpeaking) {
       startSpeech(activeSentenceIndex ?? 0, activeVoice, clampedRate);
     }
@@ -712,11 +953,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     const sessionId = speechSessionRef.current;
     const sampleText =
-      voiceOption.id === 'quynh-anh-4-0'
-        ? 'Chào bạn, rất vui được làm quen với bạn, chúc bạn một ngày tốt lành và bình an.'
-        : voiceOption.id === 'nu-review-phim' || voiceOption.id === 'nu-kich-tinh'
-        ? `Chào bạn, đây là giọng Quỳnh Anh chuyên thể loại review phim, phim Trung, truyện tranh và audio với tốc độ ${targetSpeed}x mượt mà.`
-        : `Chào bạn, rất vui được làm quen với bạn, bạn đang nghe ${voiceOption.name} tại Mạc Thư Các.`;
+      voiceOption.id === 'ngoc-huyen-ha-noi'
+        ? 'Xin chào bạn, mình là Ngọc Huyền Hà Nội. Chúc bạn có những giây phút nghe truyện thật thư giãn và trọn vẹn tại Mạc Thư Các.'
+        : voiceOption.id === 'hoai-my-neural'
+        ? 'Xin chào bạn, đây là giọng đọc Hoài My Neural được tìm và gán trực tiếp từ danh sách giọng đọc tiếng Việt chuẩn.'
+        : 'Chào bạn, rất vui được làm quen với bạn, chúc bạn một ngày tốt lành và bình an.';
 
     playFemaleVoiceSegment(
       sampleText,
@@ -902,7 +1143,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       )}
 
       {/* Focused Book Page Canvas */}
-      <article className="max-w-[680px] mx-auto px-5 sm:px-8 pt-10 pb-36">
+      <article
+        key={chapter.id}
+        className="max-w-[680px] mx-auto px-5 sm:px-8 pt-10 pb-36 animate-book-page-enter"
+      >
         {/* Clean Editorial Chapter Header */}
         <header className="pb-7 mb-8 border-b border-stone-300/60 dark:border-stone-800/80 text-center sm:text-left">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs opacity-60">
@@ -1082,68 +1326,40 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       </article>
 
-      {/* Floating Control Dock at Bottom: Auto-Scroll on left, 3-Vertical-Sliders button at the end (containing Female Voice Reader + Playback Speed + Display settings) */}
+      {/* Floating Control Dock at Bottom: Voice Playback button on left (replacing Auto-Scroll), 3-Vertical-Sliders button on right */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.5rem)] max-w-md">
-        <div className="w-full max-w-full px-2.5 py-1.5 rounded-2xl border border-stone-300/80 dark:border-stone-800 bg-[#FBF9F5]/95 dark:bg-stone-900/95 backdrop-blur-md shadow-lg flex items-center justify-between gap-1.5 overflow-hidden">
-          {/* Auto-Scroll Play/Pause + Speed */}
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsAutoScrolling((prev) => !prev)}
-              className={`min-h-[34px] px-2.5 rounded-xl text-[11px] font-medium flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                isAutoScrolling
-                  ? 'bg-amber-800 dark:bg-amber-600 text-white'
-                  : 'hover:bg-stone-200/70 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200'
-              }`}
-            >
-              {isAutoScrolling ? <Pause className="w-3.5 h-3.5 shrink-0" /> : <Play className="w-3.5 h-3.5 shrink-0" />}
-              <span>{isAutoScrolling ? 'Dừng' : 'Tự cuộn'}</span>
-            </button>
-
-            <div className="flex items-center bg-stone-200/60 dark:bg-stone-800/80 rounded-lg px-0.5 py-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdateSettings({ autoScrollSpeed: Math.max(1, settings.autoScrollSpeed - 1) })
-                }
-                className="w-5 h-5 flex items-center justify-center rounded hover:bg-stone-300/60 dark:hover:bg-stone-700 text-xs font-mono-num cursor-pointer"
-                title="Giảm tốc độ cuộn"
-              >
-                -
-              </button>
-              <span className="text-[10px] font-mono-num px-1 text-stone-700 dark:text-stone-300">
-                {settings.autoScrollSpeed}x
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdateSettings({ autoScrollSpeed: Math.min(10, settings.autoScrollSpeed + 1) })
-                }
-                className="w-5 h-5 flex items-center justify-center rounded hover:bg-stone-300/60 dark:hover:bg-stone-700 text-xs font-mono-num cursor-pointer"
-                title="Tăng tốc độ cuộn"
-              >
-                +
-              </button>
-            </div>
-          </div>
+        <div className="w-full max-w-full px-2.5 py-1.5 rounded-2xl border border-stone-300/80 dark:border-stone-800 bg-[#FBF9F5]/95 dark:bg-stone-900/95 backdrop-blur-md shadow-lg flex items-center justify-between gap-2 overflow-hidden">
+          {/* Voice Playback Button in Left Slot (Replaced Auto-Scroll) */}
+          <button
+            type="button"
+            onClick={toggleSpeech}
+            className={`min-h-[34px] px-3 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              isSpeaking
+                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-xs'
+                : 'bg-amber-800 hover:bg-amber-900 dark:bg-amber-600 dark:hover:bg-amber-500 text-white shadow-xs'
+            }`}
+            title={isSpeaking ? 'Dừng phát giọng đọc' : 'Phát giọng đọc'}
+          >
+            {isSpeaking ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5 shrink-0" />
+                <span>Dừng đọc</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Phát giọng đọc</span>
+              </>
+            )}
+          </button>
 
           <div className="h-4 w-px bg-stone-300 dark:bg-stone-800 shrink-0" />
 
-          {/* Last Button (Nút 3 gạch dọc cuối cùng): Opens Voice Reader + Playback Speed + Display Settings */}
-          <div className="flex items-center justify-end gap-1 min-w-0 flex-1 overflow-hidden">
-            {isSpeaking && (
-              <button
-                type="button"
-                onClick={stopSpeech}
-                className="min-h-[34px] px-2 rounded-xl bg-amber-800 dark:bg-amber-600 text-white text-[11px] font-semibold flex items-center gap-1 min-w-0 shrink cursor-pointer overflow-hidden"
-                title="Dừng đọc giọng nữ"
-              >
-                <VolumeX className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">
-                  Dừng ({settings.ttsRate.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}x)
-                </span>
-              </button>
-            )}
+          {/* Right Slot: Opens Voice Reader + Playback Speed + Display Settings */}
+          <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 overflow-hidden">
+            <span className="hidden sm:inline-block text-[10px] text-stone-500 dark:text-stone-400 truncate">
+              {activeVoice.name}
+            </span>
 
             <button
               type="button"
@@ -1156,9 +1372,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               title="Mở giọng đọc nữ, tốc độ phát & tùy chỉnh chữ"
             >
               <Sliders className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                {isSpeaking ? 'Giọng đọc' : 'Giọng đọc & Cài đặt'}
-              </span>
+              <span className="truncate">Giọng đọc & Cài đặt</span>
             </button>
           </div>
         </div>
@@ -1243,7 +1457,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                   Giọng Đọc Nữ, Tốc Độ Phát & Trang Đọc
                 </h3>
                 <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
-                  Điều khiển nghe truyện, tốc độ phát và 6 giọng nữ chuyên biệt
+                  Điều khiển nghe truyện, tốc độ phát và 3 giọng nữ chuyên biệt
                 </p>
               </div>
               <button
@@ -1261,7 +1475,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 <div className="flex items-center justify-between gap-2.5 min-w-0">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
                     <div className="w-9 h-9 rounded-full bg-emerald-500 text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
-                      Q
+                      {activeVoice.id === 'ngoc-huyen-ha-noi'
+                        ? 'N'
+                        : activeVoice.id === 'hoai-my-neural'
+                        ? 'H'
+                        : 'Q'}
                     </div>
                     <div className="min-w-0 flex-1 overflow-hidden">
                       <p className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 truncate">
@@ -1375,7 +1593,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5 min-w-0 truncate">
                     <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">Chọn Giọng Đọc Nữ (6 Giọng Nữ)</span>
+                    <span className="truncate">Chọn Giọng Đọc Nữ (3 Giọng Nữ)</span>
                   </label>
                   <span className="text-[11px] font-mono-num text-stone-500 dark:text-stone-400 shrink-0">
                     100% Giọng Nữ
@@ -1513,34 +1731,18 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1.5">
-                    Cỡ chữ: <span className="font-mono-num">{settings.fontSize}px</span>
-                  </label>
-                  <input
-                    type="range"
-                    min={15}
-                    max={26}
-                    value={settings.fontSize}
-                    onChange={(e) => onUpdateSettings({ fontSize: Number(e.target.value) })}
-                    className="w-full accent-amber-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1.5">
-                    Tốc độ cuộn: <span className="font-mono-num">{settings.autoScrollSpeed}x</span>
-                  </label>
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    value={settings.autoScrollSpeed}
-                    onChange={(e) => onUpdateSettings({ autoScrollSpeed: Number(e.target.value) })}
-                    className="w-full accent-amber-700"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1.5">
+                  Cỡ chữ: <span className="font-mono-num">{settings.fontSize}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={15}
+                  max={26}
+                  value={settings.fontSize}
+                  onChange={(e) => onUpdateSettings({ fontSize: Number(e.target.value) })}
+                  className="w-full accent-amber-700 cursor-pointer"
+                />
               </div>
 
               <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex items-center justify-between">

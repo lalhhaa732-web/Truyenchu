@@ -43,14 +43,7 @@ export interface RealtimeUpdateEvent {
 export type ReaderTheme = 'light' | 'sepia' | 'dark';
 export type ReaderFont = 'serif' | 'sans';
 
-export type FemaleVoiceId =
-  | 'quynh-anh-4-0'
-  | 'nu-review-phim'
-  | 'nu-kich-tinh'
-  | 'nu-tien-hiep'
-  | 'nu-ngot-ngao'
-  | 'nu-ha-noi'
-  | 'nu-sai-gon';
+export type FemaleVoiceId = 'quynh-anh-4-0' | 'ngoc-huyen-ha-noi' | 'hoai-my-neural';
 
 export interface FemaleVoiceOption {
   id: FemaleVoiceId;
@@ -61,7 +54,7 @@ export interface FemaleVoiceOption {
   baseRate: number;
   pitch: number;
   detuneCents: number;
-  geminiVoice: 'Kore' | 'Zephyr';
+  geminiVoice: 'Kore' | 'Zephyr' | 'Aoede';
   stylePrompt: string;
 }
 
@@ -70,79 +63,40 @@ export const FEMALE_VOICE_OPTIONS: FemaleVoiceOption[] = [
     id: 'quynh-anh-4-0',
     name: 'Quỳnh Anh 4.0 (VI - Nữ)',
     shortName: 'Quỳnh Anh 4.0',
-    badge: 'VI - Nữ · MP3',
+    badge: 'Trong Trẻo · Nhịp 4.0',
     description:
-      'Quỳnh Anh 4.0: Truyện tranh, audio, review phim, phim Trung... Chất giọng nữ AI tự nhiên, trong trẻo, đọc trôi chảy không vấp.',
+      'Quỳnh Anh 4.0: Giọng nữ trẻ trung, âm sắc sáng trong trẻo (+18Hz), nhịp đọc linh hoạt 1.08x, ngắt nghỉ tự nhiên không vấp chữ.',
+    baseRate: 1.08,
+    pitch: 1.12,
+    detuneCents: 130,
+    geminiVoice: 'Kore',
+    stylePrompt: 'Bright, youthful, crisp Northern Vietnamese female neural narrator Quynh Anh 4.0'
+  },
+  {
+    id: 'ngoc-huyen-ha-noi',
+    name: 'Ngọc Huyền Hà Nội (VI - Nữ)',
+    shortName: 'Ngọc Huyền Hà Nội',
+    badge: 'Hà Nội · Trầm Ấm',
+    description:
+      'Ngọc Huyền Hà Nội: Giọng nữ phát thanh viên Hà Nội trầm ấm (-18Hz), nhịp kể chuyện sâu lắng 0.96x, truyền cảm và dịu tai.',
+    baseRate: 0.96,
+    pitch: 0.88,
+    detuneCents: -150,
+    geminiVoice: 'Aoede',
+    stylePrompt: 'Warm, deep, expressive Hanoi late-night radio female storyteller Ngoc Huyen'
+  },
+  {
+    id: 'hoai-my-neural',
+    name: 'Hoài My Neural (vi-VN-HoaiMyNeural)',
+    shortName: 'Hoài My Neural',
+    badge: 'HoaiMyNeural · Chuẩn Gốc',
+    description:
+      'Hoài My Neural: Giọng chuẩn vi-VN-HoaiMyNeural nguyên bản (0Hz, 1.0x), tìm và gán trực tiếp từ window.speechSynthesis hoặc luồng Neural gốc.',
     baseRate: 1.0,
     pitch: 1.0,
     detuneCents: 0,
-    geminiVoice: 'Kore',
-    stylePrompt: 'Natural, sweet, articulate Northern Vietnamese female neural narrator Quynh Anh 4.0'
-  },
-  {
-    id: 'nu-review-phim',
-    name: 'Quỳnh Anh Review Phim (1.25x)',
-    shortName: 'Quỳnh Anh 1.25x',
-    badge: 'Review Phim · 1.25x',
-    description:
-      'Chất giọng Quỳnh Anh 4.0 nhịp nhanh 1.25x chuyên review phim, truyện tranh, phim Trung chuẩn YouTube giữ nguyên tông giọng.',
-    baseRate: 1.25,
-    pitch: 1.0,
-    detuneCents: 0,
-    geminiVoice: 'Kore',
-    stylePrompt: 'Fast-paced, crisp, engaging Vietnamese female movie review narrator'
-  },
-  {
-    id: 'nu-kich-tinh',
-    name: 'Quỳnh Anh Nhịp Nhanh (1.5x)',
-    shortName: 'Nữ Nhịp Nhanh',
-    badge: 'Tốc độ 1.5x',
-    description:
-      'Giọng nữ đọc nhanh 1.5x chuẩn YouTube cho đoạn cao trào, dứt khoát mà không làm biến đổi giọng.',
-    baseRate: 1.5,
-    pitch: 1.0,
-    detuneCents: 0,
-    geminiVoice: 'Kore',
-    stylePrompt: 'Dramatic, intense, fast-paced Vietnamese female action movie reviewer'
-  },
-  {
-    id: 'nu-tien-hiep',
-    name: 'Nữ Audio Tiên Hiệp (1.1x)',
-    shortName: 'Nữ Tiên Hiệp',
-    badge: 'Audio · 1.1x',
-    description:
-      'Giọng nữ kể chuyện nhịp 1.1x mượt mà, truyền cảm khi nghe tiểu thuyết tiên hiệp, cổ phong dài kỳ.',
-    baseRate: 1.1,
-    pitch: 1.0,
-    detuneCents: 0,
     geminiVoice: 'Zephyr',
-    stylePrompt: 'Ethereal, clear, graceful Vietnamese female fantasy storyteller'
-  },
-  {
-    id: 'nu-ha-noi',
-    name: 'Nữ Hà Nội Truyền Cảm (1.0x)',
-    shortName: 'Nữ Hà Nội',
-    badge: 'Chuẩn 1.0x',
-    description:
-      'Giọng nữ Bắc ấm áp tốc độ chuẩn 1.0x, phát âm tròn vành rõ chữ, nhịp điệu điềm tĩnh.',
-    baseRate: 1.0,
-    pitch: 1.0,
-    detuneCents: 0,
-    geminiVoice: 'Kore',
-    stylePrompt: 'Polished, articulate Northern Vietnamese female audiobook narrator'
-  },
-  {
-    id: 'nu-ngot-ngao',
-    name: 'Nữ Nghe Đêm Dịu Êm (0.9x)',
-    shortName: 'Nữ Nghe Đêm',
-    badge: 'Tốc độ 0.9x',
-    description:
-      'Giọng nữ nhẹ nhàng, nhịp đọc 0.9x thư giãn trước khi ngủ, giữ nguyên độ trong trẻo tự nhiên.',
-    baseRate: 0.9,
-    pitch: 1.0,
-    detuneCents: 0,
-    geminiVoice: 'Zephyr',
-    stylePrompt: 'Warm, soothing, gentle late-night Vietnamese female radio host'
+    stylePrompt: 'Clear, balanced standard Microsoft HoaiMyNeural Vietnamese female voice'
   }
 ];
 
