@@ -7,19 +7,19 @@
   "synopsis": "Tu tiên là gì? Là đoạt thiên địa tạo hóa, là đạp trên núi thây biển máu để tranh giành từng viên linh đan, từng quyển bí tịch. Đã bước chân vào giới Tu Tiên, kẻ nào cũng mang trong mình dã tâm ngút ngàn: Kẻ muốn phi thăng thành tiên, người muốn xưng bá một phương. Nhưng đó là câu chuyện của những thiên tài xuất chúng. Còn đối với những kẻ \"dưới đáy xã hội\" thì sao? Hãy tạm quên đi những nam chính hở một chút là rút kiếm chém giết, hay những thiên tài vạn năm có một mang sứ mệnh cứu thế. Chào mừng bạn đến với \"Cẩu Thả Thành Thánh Nhân, Tiên Quan Triệu Ta Chăm Ngựa\" – một siêu phẩm thuộc thể loại Hệ Thống, Cẩu Đạo đầy sảng khoái của cây bút lão làng Nhâm Ngã Tiếu. Nơi đây, chúng ta sẽ theo chân một kẻ phàm nhân có tư chất kém cỏi nhất, dùng một phương thức \"bỉ ổi\" và nhàn hạ nhất để từng bước bước lên đỉnh cao trường sinh: Đi làm vườn!",
   "coverStyle": "star-nebula",
   "coverImageUrl": "https://storya.click/media/covers/43b2d60a-693a-2ca8-3b70-60a380ec6b55/vi/af23cadcab497fa88d4089c3ddc45aae7dde716a87fc73f879d4108efd948564.jpg",
-  "views": 1,
+  "views": 4328,
   "rating": 5,
-  "updatedAt": "2026-10-22T16:17:02.342Z",
+  "updatedAt": "2026-10-22T17:23:04.085Z",
   "sourceUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua",
   "autoFetchEnabled": true,
-  "lastSyncedAt": "2026-10-22T16:17:02.342Z",
+  "lastSyncedAt": "2026-10-22T17:23:04.085Z",
   "pendingChapterLinks": [
     {
-      "title": "Chương 2",
-      "url": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ngan-nam-tuoi-tho"
+      "title": "Chương 33",
+      "url": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/kinh-dong-ngoai-mon-phong-than"
     }
   ],
-  "chapterCount": 1,
+  "chapterCount": 42,
   "chaptersIndex": [
     {
       "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c1",
@@ -28,6 +28,334 @@
       "wordCount": 2583,
       "publishedAt": "2026-10-22T16:17:02.342Z",
       "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/chiem-lay-tuoi-tho"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c2-1792685883153",
+      "number": 2,
+      "title": "Ngàn năm tuổi thọ",
+      "wordCount": 2618,
+      "publishedAt": "2026-10-22T16:18:03.152Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ngan-nam-tuoi-tho"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c3-1792685952506",
+      "number": 3,
+      "title": "Diễn hóa công pháp, Long Kình Thần Nguyên Công",
+      "wordCount": 2635,
+      "publishedAt": "2026-10-22T16:19:12.506Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/dien-hoa-cong-phap-long-kinh-than-nguyen-cong"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c4-1792686022770",
+      "number": 4,
+      "title": "Tham Sân yêu quỷ",
+      "wordCount": 2542,
+      "publishedAt": "2026-10-22T16:20:22.770Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/tham-san-yeu-quy"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c5-1792686092898",
+      "number": 5,
+      "title": "Liền này?",
+      "wordCount": 2605,
+      "publishedAt": "2026-10-22T16:21:32.898Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/lien-nay"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c6-1792686162688",
+      "number": 6,
+      "title": "Tốt mập ngoại môn đệ tử",
+      "wordCount": 2530,
+      "publishedAt": "2026-10-22T16:22:42.688Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/tot-map-ngoai-mon-de-tu"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c7-1792686232326",
+      "number": 7,
+      "title": "Ba ngàn năm tuổi thọ, mối nguy tái sinh",
+      "wordCount": 2604,
+      "publishedAt": "2026-10-22T16:23:52.326Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ba-ngan-nam-tuoi-tho-moi-nguy-tai-sinh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c8-1792686303590",
+      "number": 8,
+      "title": "Thần Mộc Thuần Dương Công, Đại sư huynh vị trí",
+      "wordCount": 2604,
+      "publishedAt": "2026-10-22T16:25:03.590Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/than-moc-thuan-duong-cong-dai-su-huynh-vi-tri"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c9-1792686372318",
+      "number": 9,
+      "title": "Đại đệ tử một đời",
+      "wordCount": 2626,
+      "publishedAt": "2026-10-22T16:26:12.318Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/dai-de-tu-mot-doi"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c10-1792686460986",
+      "number": 10,
+      "title": "Luyện Đan thuật, một ngọc hứa một lời",
+      "wordCount": 2638,
+      "publishedAt": "2026-10-22T16:27:40.986Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/luyen-dan-thuat-mot-ngoc-hua-mot-loi"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c11-1792686530797",
+      "number": 11,
+      "title": "Cơ gia tuyệt học",
+      "wordCount": 2620,
+      "publishedAt": "2026-10-22T16:28:50.797Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/co-gia-tuyet-hoc"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c12-1792686606988",
+      "number": 12,
+      "title": "Trúc Cơ, đêm tối phong vân",
+      "wordCount": 2619,
+      "publishedAt": "2026-10-22T16:30:06.988Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/truc-co-dem-toi-phong-van"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c13-1792686671481",
+      "number": 13,
+      "title": "Ta chỉ nhớ rõ hắn thối pháp rất nhanh",
+      "wordCount": 2559,
+      "publishedAt": "2026-10-22T16:31:11.481Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ta-chi-nho-ro-han-thoi-phap-rat-nhanh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c14-1792686741326",
+      "number": 14,
+      "title": "Mỗi ngày kế hoạch, dược cổ",
+      "wordCount": 2663,
+      "publishedAt": "2026-10-22T16:32:21.326Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/moi-ngay-ke-hoach-duoc-co"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c15-1792686811158",
+      "number": 15,
+      "title": "Thiên Thu các, Huyền cốc chi chủ",
+      "wordCount": 2482,
+      "publishedAt": "2026-10-22T16:33:31.158Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/thien-thu-cac-huyen-coc-chi-chu"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c16-1792686880837",
+      "number": 16,
+      "title": "Trúc Cơ cảnh bảy tầng, rừng núi huyền cơ",
+      "wordCount": 2602,
+      "publishedAt": "2026-10-22T16:34:40.837Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/truc-co-canh-bay-tang-rung-nui-huyen-co"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c17-1792686950980",
+      "number": 17,
+      "title": "Đảm nhiệm cốc chủ",
+      "wordCount": 2549,
+      "publishedAt": "2026-10-22T16:35:50.980Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/dam-nhiem-coc-chu"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c18-1792687022176",
+      "number": 18,
+      "title": "Vạn Cổ Huyền Công, bảy ngàn tuổi thọ mệnh",
+      "wordCount": 2517,
+      "publishedAt": "2026-10-22T16:37:02.176Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/van-co-huyen-cong-bay-ngan-tuoi-tho-menh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c19-1792687091537",
+      "number": 19,
+      "title": "Tuổi thọ kết giới, đột phá Kết Đan cảnh",
+      "wordCount": 2655,
+      "publishedAt": "2026-10-22T16:38:11.537Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/tuoi-tho-ket-gioi-dot-pha-ket-dan-canh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c20-1792687168541",
+      "number": 20,
+      "title": "Linh căn thuế biến, Nguyên Anh cảnh tu sĩ",
+      "wordCount": 2773,
+      "publishedAt": "2026-10-22T16:39:28.541Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/linh-can-thue-bien-nguyen-anh-canh-tu-si"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c21-1792687238453",
+      "number": 21,
+      "title": "Lý Nhai trở về, Lý gia thần binh",
+      "wordCount": 2526,
+      "publishedAt": "2026-10-22T16:40:38.453Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ly-nhai-tro-ve-ly-gia-than-binh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c22-1792687308819",
+      "number": 22,
+      "title": "Hai ngàn năm diễn hóa, Thái Thương Kinh Thần Kiếm",
+      "wordCount": 2632,
+      "publishedAt": "2026-10-22T16:41:48.819Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/hai-ngan-nam-dien-hoa-thai-thuong-kinh-than-kiem"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c23-1792687378059",
+      "number": 23,
+      "title": "Diêu Hồn chung, Âm Dương quyết",
+      "wordCount": 2625,
+      "publishedAt": "2026-10-22T16:42:58.059Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/dieu-hon-chung-am-duong-quyet"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c24-1792687449174",
+      "number": 24,
+      "title": "Kết Đan cảnh chín tầng Khương Quỳnh",
+      "wordCount": 2533,
+      "publishedAt": "2026-10-22T16:44:09.174Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ket-dan-canh-chin-tang-khuong-quynh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c25-1792687518179",
+      "number": 25,
+      "title": "Ngươi có thể từng nghe nói Nguyên Anh cảnh?",
+      "wordCount": 2540,
+      "publishedAt": "2026-10-22T16:45:18.179Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/nguoi-co-the-tung-nghe-noi-nguyen-anh-canh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c26-1792687588286",
+      "number": 26,
+      "title": "Thiên hạ ngoại môn đại hội",
+      "wordCount": 2569,
+      "publishedAt": "2026-10-22T16:46:28.286Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/thien-ha-ngoai-mon-dai-hoi"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c27-1792687658083",
+      "number": 27,
+      "title": "Vạn Âm giáo, Từ Như Dạ",
+      "wordCount": 2558,
+      "publishedAt": "2026-10-22T16:47:38.083Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/van-am-giao-tu-nhu-da"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c28-1792687763060",
+      "number": 28,
+      "title": "Phi diệp tru địch, thật là bá đạo kiếm khí",
+      "wordCount": 2600,
+      "publishedAt": "2026-10-22T16:49:23.060Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/phi-diep-tru-dich-that-la-ba-dao-kiem-khi"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c29-1792687868095",
+      "number": 29,
+      "title": "Ma Ảnh thần công, Khương Quỳnh tán thưởng",
+      "wordCount": 2533,
+      "publishedAt": "2026-10-22T16:51:08.095Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ma-anh-than-cong-khuong-quynh-tan-thuong"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c30-1792688008738",
+      "number": 30,
+      "title": "Nguyên Anh cảnh chín tầng, Mộc Linh kiếm pháp",
+      "wordCount": 2546,
+      "publishedAt": "2026-10-22T16:53:28.738Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/nguyen-anh-canh-chin-tang-moc-linh-kiem-phap"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c31-1792688097921",
+      "number": 31,
+      "title": "Chân Long huyết mạch",
+      "wordCount": 2616,
+      "publishedAt": "2026-10-22T16:54:57.921Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/chan-long-huyet-mach"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c32-1792688171085",
+      "number": 32,
+      "title": "Đêm tuyết đối kiếm, Nguyên Anh chiến Nguyên Anh",
+      "wordCount": 2557,
+      "publishedAt": "2026-10-22T16:56:11.085Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/dem-tuyet-doi-kiem-nguyen-anh-chien-nguyen-anh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c33-1792688269460",
+      "number": 33,
+      "title": "Kinh động ngoại môn, phong thần",
+      "wordCount": 2628,
+      "publishedAt": "2026-10-22T16:57:49.460Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/kinh-dong-ngoai-mon-phong-than"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c34-1792688935201",
+      "number": 34,
+      "title": "Ba vạn năm tuổi thọ, Tử Vi Trận Lục",
+      "wordCount": 2607,
+      "publishedAt": "2026-10-22T17:08:55.201Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/ba-van-nam-tuoi-tho-tu-vi-tran-luc"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c35-1792689006848",
+      "number": 35,
+      "title": "Phi Diệp kiếm tiên, Hóa Thần cảnh truyền thừa",
+      "wordCount": 2621,
+      "publishedAt": "2026-10-22T17:10:06.848Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/phi-diep-kiem-tien-hoa-than-canh-truyen-thua"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c36-1792689074558",
+      "number": 36,
+      "title": "Huyền Hoàng Long Khí Công, lĩnh ngộ Thần Thông",
+      "wordCount": 2669,
+      "publishedAt": "2026-10-22T17:11:14.558Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/huyen-hoang-long-khi-cong-linh-ngo-than-thong"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c37-1792689144824",
+      "number": 37,
+      "title": "Hoàng Đế mời chào",
+      "wordCount": 2581,
+      "publishedAt": "2026-10-22T17:12:24.824Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/hoang-de-moi-chao"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c38-1792689214651",
+      "number": 38,
+      "title": "Hận Thiên thần kiếm, Thái Huyền môn kinh biến",
+      "wordCount": 2583,
+      "publishedAt": "2026-10-22T17:13:34.650Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/han-thien-than-kiem-thai-huyen-mon-kinh-bien"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c39-1792689285046",
+      "number": 39,
+      "title": "Nguyên Anh cản đường, hèn hạ",
+      "wordCount": 2574,
+      "publishedAt": "2026-10-22T17:14:45.046Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/nguyen-anh-can-duong-hen-ha"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c40-1792689599632",
+      "number": 40,
+      "title": "Lại nghe phi diệp, mười vạn tuổi thọ mệnh",
+      "wordCount": 2594,
+      "publishedAt": "2026-10-22T17:19:59.632Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/lai-nghe-phi-diep-muoi-van-tuoi-tho-menh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c41-1792689713179",
+      "number": 41,
+      "title": "Cực phẩm thiên linh căn, đột phá Hóa Thần cảnh",
+      "wordCount": 2739,
+      "publishedAt": "2026-10-22T17:21:53.179Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/cuc-pham-thien-linh-can-dot-pha-hoa-than-canh"
+    },
+    {
+      "id": "cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua-104-c42-1792689784085",
+      "number": 42,
+      "title": "Đột phá Độ Hư cảnh, Ma Quân đột kích",
+      "wordCount": 2650,
+      "publishedAt": "2026-10-22T17:23:04.085Z",
+      "sourceChapterUrl": "https://storya.click/vi/stories/cau-tha-thanh-thanh-nhan-tien-quan-trieu-ta-cham-ngua/dot-pha-do-hu-canh-ma-quan-dot-kich"
     }
   ]
 }
